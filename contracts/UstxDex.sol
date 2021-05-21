@@ -56,7 +56,7 @@ contract UstxDEX is ERC20,ReentrancyGuard,Pausable {
 
 
   /***********************************|
-  |            Constsructor           |
+  |            Constructor            |
   |__________________________________*/
 
   /**
@@ -388,9 +388,9 @@ contract UstxDEX is ERC20,ReentrancyGuard,Pausable {
   }
 
 
-  /***********************************|
-  |         Getter and Setter Functions          |
-  |__________________________________*/
+  /**************************************|
+  |     Getter and Setter Functions      |
+  |_____________________________________*/
 
   /**
    * @dev function to set Token address (only admin)
