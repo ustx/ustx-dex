@@ -21,6 +21,7 @@ contract UstxDEX is ERC20,ReentrancyGuard,Pausable {
 
   //Constants
   uint256 private constant MAX_FEE = 250;   //maximum fee in BP (2.5%)
+  uint256 private constant MAX_LAUNCH_FEE = 1000;  //maximum team fee during launchpad (10%)
 
 
   // Variables
@@ -40,6 +41,13 @@ contract UstxDEX is ERC20,ReentrancyGuard,Pausable {
   uint256 private _minExp;          //minimum expansion in TH
   uint256 private _maxDamp;         //maximum damping in TH
   uint256 private _collectedFees;   //amount of collected fees
+  uint256 private _launchEnabled;   //launchpad mode if >1
+  uint256 private _launchTargetSize;   //number of tokens reserved for launchpad
+  uint256 private _launchPrice;     //Launchpad price
+  uint256 private _launchBought;  //number of tokens bought so far in Launchpad
+  uint256 private _launchMaxLot;    //max number of usdtSold for a single operation during Launchpad
+  uint256 private _launchFee;       //Launchpad fee
+  address private _launchTeamAddr;  //Launchpad team address
 
   // Events
   event TokenBuy(address indexed buyer, uint256 indexed usdtSold, uint256 indexed tokensBought, uint256 fees);
@@ -64,7 +72,8 @@ contract UstxDEX is ERC20,ReentrancyGuard,Pausable {
         );
         Token = UpStableToken(tradeTokenAddr);
         Tusdt = IERC20(reserveTokenAddr);
-        name = "UstxDex V1";
+        _launchTeamAddr = _msgSender();
+        name = "UstxDEX V1";
         symbol = "USTXDEX-V1";
         decimals = 6;
         _feeBuy = 50; //0.5%
@@ -75,6 +84,7 @@ contract UstxDEX is ERC20,ReentrancyGuard,Pausable {
         _minExp = 100;
         _maxDamp = 500;
         _collectedFees = 0;
+        _launchEnabled = 0;
       }
 
 
@@ -270,6 +280,29 @@ contract UstxDEX is ERC20,ReentrancyGuard,Pausable {
     }
 
   /**
+   * @dev Internal function to buy tokens during launchpad with exact input in USDT
+   *
+   */
+    function _buyLaunchpadInput(uint256 usdtSold, uint256 minTokens, uint256 deadline, address buyer, address recipient) private nonReentrant returns (uint256) {
+        require(deadline >= block.timestamp && usdtSold > 0 && minTokens > 0);
+
+        uint256 tokensBought = usdtSold.mul(10**decimals).div(_launchPrice);
+        uint256 fee = usdtSold.mul(_launchFee).div(10000);
+
+        require(tokensBought >= minTokens);
+        _launchBought = _launchBought.add(tokensBought);
+        Token.mint(address(this),tokensBought);                     //mint new tokens
+
+        Tusdt.safeTransferFrom(buyer, address(this), usdtSold);     //add usdtSold to reserve
+        Tusdt.safeTransferUSDT(_launchTeamAddr,fee);                //transfer fees to team
+        Token.safeTransfer(address(recipient),tokensBought);        //transfer tokens to recipient
+        emit TokenBuy(buyer, usdtSold, tokensBought, 0);
+        emit Snapshot(buyer, Tusdt.balanceOf(address(this)), Token.balanceOf(address(this)));
+
+        return tokensBought;
+    }
+
+  /**
    * @dev Internal function to sell tokens with exact input in tokens
    *
    */
@@ -294,10 +327,34 @@ contract UstxDEX is ERC20,ReentrancyGuard,Pausable {
   }
 
   /**
+   * @dev public function to buy tokens during launchpad
+   *
+   */
+  function  buyTokenLaunchInput(uint256 rSell, uint256 minTokens, uint256 deadline)  public whenNotPaused returns (uint256)  {
+    require(_launchEnabled>0,"Function allowed only during launchpad");
+    require(_launchBought<_launchTargetSize,"Launchpad target reached!");
+    require(rSell<=_launchMaxLot,"Order too big for Launchpad");
+    return _buyLaunchpadInput(rSell, minTokens, deadline, msg.sender, msg.sender);
+  }
+
+  /**
+   * @dev public function to buy tokens during launchpad and transfer them to recipient
+   *
+   */
+  function buyTokenLaunchTransferInput(uint256 rSell, uint256 minTokens, uint256 deadline, address recipient) public whenNotPaused returns(uint256) {
+    require(_launchEnabled>0,"Function allowed only during launchpad");
+    require(recipient != address(this) && recipient != address(0),"Recipient cannot be DEX or address 0");
+    require(_launchBought<_launchTargetSize,"Launchpad target reached!");
+    require(rSell<=_launchMaxLot,"Order too big for Launchpad");
+    return _buyLaunchpadInput(rSell, minTokens, deadline, msg.sender, recipient);
+  }
+
+  /**
    * @dev public function to buy tokens
    *
    */
   function  buyTokenInput(uint256 rSell, uint256 minTokens, uint256 deadline)  public whenNotPaused returns (uint256)  {
+    require(_launchEnabled==0,"Function not allowed during launchpad");
     return _buyStableInput(rSell, minTokens, deadline, msg.sender, msg.sender);
   }
 
@@ -306,7 +363,8 @@ contract UstxDEX is ERC20,ReentrancyGuard,Pausable {
    *
    */
   function buyTokenTransferInput(uint256 rSell, uint256 minTokens, uint256 deadline, address recipient) public whenNotPaused returns(uint256) {
-    require(recipient != address(this) && recipient != address(0));
+    require(_launchEnabled==0,"Function not allowed during launchpad");
+    require(recipient != address(this) && recipient != address(0),"Recipient cannot be DEX or address 0");
     return _buyStableInput(rSell, minTokens, deadline, msg.sender, recipient);
   }
 
@@ -315,6 +373,7 @@ contract UstxDEX is ERC20,ReentrancyGuard,Pausable {
    *
    */
   function sellTokenInput(uint256 tokensSold, uint256 minUsdts, uint256 deadline) public whenNotPaused returns (uint256) {
+    require(_launchEnabled==0,"Function not allowed during launchpad");
     return _sellStableInput(tokensSold, minUsdts, deadline, msg.sender, msg.sender);
   }
 
@@ -323,7 +382,8 @@ contract UstxDEX is ERC20,ReentrancyGuard,Pausable {
    *
    */
   function sellTokenTransferInput(uint256 tokensSold, uint256 minUsdts, uint256 deadline, address recipient) public whenNotPaused returns (uint256) {
-    require(recipient != address(this) && recipient != address(0));
+    require(_launchEnabled==0,"Function not allowed during launchpad");
+    require(recipient != address(this) && recipient != address(0),"Recipient cannot be DEX or address 0");
     return _sellStableInput(tokensSold, minUsdts, deadline, msg.sender, recipient);
   }
 
@@ -356,7 +416,7 @@ contract UstxDEX is ERC20,ReentrancyGuard,Pausable {
    *
    */
     function setFees(uint256 feeBuy, uint256 feeSell) public onlyAdmin {
-        require(feeBuy<=MAX_FEE && feeSell<=MAX_FEE);
+        require(feeBuy<=MAX_FEE && feeSell<=MAX_FEE,"Fees cannot be higher than MAX_FEE");
         _feeBuy=feeBuy;
         _feeSell=feeSell;
     }
@@ -375,8 +435,8 @@ contract UstxDEX is ERC20,ReentrancyGuard,Pausable {
    * ratio in thousandths
    *
    */
-    function setRatio(uint256 ratio) public onlyAdmin {
-        require(ratio<10000,"Target ratio cannot be over 100%");
+    function setTargetRatio(uint256 ratio) public onlyAdmin {
+        require(ratio<10000 && ratio>100,"Target ratio must be between 1% and 100%");
         _targetRatio = ratio;       //in TH
     }
 
@@ -385,8 +445,24 @@ contract UstxDEX is ERC20,ReentrancyGuard,Pausable {
    * ratio in thousandths
    *
    */
-    function getRatio() public view returns (uint256) {
+    function getTargetRatio() public view returns (uint256) {
         return _targetRatio;
+    }
+
+  /**
+   * @dev function to get target ratio level
+   * ratio in thousandths
+   *
+   */
+    function getCurrentRatio() public view returns (uint256) {
+        uint256 tokenReserve = Token.balanceOf(address(this));
+        uint256 usdtReserve = Tusdt.balanceOf(address(this));
+        uint256 tokenCirc = Token.totalSupply();        //total
+        tokenCirc = tokenCirc.sub(tokenReserve);
+        uint256 price = getPrice();         //multiplied by 10**decimals
+        uint256 cirCap = price.mul(tokenCirc);      //multiplied by 10**decimals
+        uint256 ratio = usdtReserve.mul(1000000000).div(cirCap);  //in TH
+        return ratio;
     }
 
   /**
@@ -434,9 +510,13 @@ contract UstxDEX is ERC20,ReentrancyGuard,Pausable {
    *
    */
     function getPrice() public view returns (uint256) {
-        uint256 tokenReserve = Token.balanceOf(address(this));
-        uint256 usdtReserve = Tusdt.balanceOf(address(this));
-        return (usdtReserve.mul(10**decimals).div(tokenReserve));      //price with decimals
+        if (_launchEnabled>0) {
+            return (_launchPrice);
+        }else {
+            uint256 tokenReserve = Token.balanceOf(address(this));
+            uint256 usdtReserve = Tusdt.balanceOf(address(this));
+            return (usdtReserve.mul(10**decimals).div(tokenReserve));      //price with decimals
+        }
     }
 
   /**
@@ -491,4 +571,45 @@ contract UstxDEX is ERC20,ReentrancyGuard,Pausable {
         uint256 tokenCirc = Token.totalSupply().sub(tokenReserve);
         return (usdtReserve,tokenReserve,tokenCirc,_collectedFees);
     }
+
+  /**
+   * @dev function to enable launchpad (only admin)
+   *
+   *
+   */
+    function enableLaunchpad(uint256 price, uint256 target, uint256 maxLot, uint256 fee) public onlyAdmin {
+        require(_launchTeamAddr != address(0),"Before activating launchpad set team address");
+        require(price>0 && target>0 && maxLot>0 && fee<=MAX_LAUNCH_FEE,"Price, target and max lotsize cannot be 0. Fee must be lower than MAX_LAUNCH_FEE");
+        _launchPrice = price;       //in USDT units
+        _launchTargetSize = target; //in USTX units
+        _launchBought = 0;          //in USTX units
+        _launchFee = fee;
+        _launchMaxLot = maxLot;     //in USDT units
+        _launchEnabled = 1;
+    }
+
+    /**
+   * @dev function to disable launchpad (only admin)
+   *
+   *
+   */
+    function disableLaunchpad() public onlyAdmin {
+        _launchEnabled = 0;
+    }
+
+    /**
+   * @dev function to get launchpad status (only admin)
+   *
+   *
+   */
+    function getLaunchpadStatus() public view returns (uint256, uint256, uint256, uint256, uint256, uint256) {
+        return (_launchEnabled,_launchPrice,_launchBought,_launchTargetSize,_launchMaxLot,_launchFee);
+    }
+  /**
+   * @dev Set Launchpad team address
+   */
+  function setTeamAddress(address team) public onlyAdmin {
+      require(team != address(0) && team != address(this));
+      _launchTeamAddr = team;
+  }
 }

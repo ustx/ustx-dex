@@ -29,6 +29,9 @@ contract UpStableToken is ERC20,ERC20Detailed,Pausable,ReentrancyGuard {
 
     function transfer(address _to, uint256 _value) public whenNotPaused returns (bool) {
       uint256 fee = calcFee(_value);
+      if (isAdmin(_msgSender())){   //no fees if sender is admin (DEX included)
+          fee = 0;
+      }
       uint256 sendAmount = _value.sub(fee);
 
       if (fee > 0) {
@@ -41,9 +44,12 @@ contract UpStableToken is ERC20,ERC20Detailed,Pausable,ReentrancyGuard {
 
     function transferFrom(address _from, address _to, uint256 _value) public whenNotPaused returns (bool) {
       uint256 fee = calcFee(_value);
+      if (isAdmin(_msgSender())){   //no fees if sender is admin (DEX included)
+          fee = 0;
+      }
       uint256 sendAmount = _value.sub(fee);
 
-      if (fee > 0) {
+      if (fee > 0 ) {
         super.transferFrom(_from, _feeAddress, fee);
       }
       super.transferFrom(_from, _to, sendAmount);
@@ -69,7 +75,7 @@ contract UpStableToken is ERC20,ERC20Detailed,Pausable,ReentrancyGuard {
     event FeeChanged(uint256 feeBasisPoints);
 
     function setFeeAddress(address feeAddr) public onlyAdmin {
-      require(feeAddr != address(0));
+      require(feeAddr != address(0) && feeAddr != address(this));
       _feeAddress = feeAddr;
     }
 
