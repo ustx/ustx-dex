@@ -76,13 +76,13 @@ contract UstxDEX is ERC20,ReentrancyGuard,Pausable {
         name = "UstxDEX V1";
         symbol = "USTXDEX-V1";
         decimals = 6;
-        _feeBuy = 50; //0.5%
+        _feeBuy = 0; //0%
         _feeSell = 100; //1%
         _targetRatio = 200;
         _expFactor = 1000;
         _dampFactor = 1000;
         _minExp = 100;
-        _maxDamp = 500;
+        _maxDamp = 250;
         _collectedFees = 0;
         _launchEnabled = 0;
       }
@@ -135,31 +135,29 @@ contract UstxDEX is ERC20,ReentrancyGuard,Pausable {
     }
 
   /**
-   * @dev Internal function to get amount of minted tokens
+   * @dev Internal function to get k exponential factor for expansion
    *
    */
-    function _getMinted(uint256 tokenReserve, uint256 exp, uint256 usdtSoldNet, uint256 usdtReserveNew) private pure returns (uint256) {
-        //uint256 minted=tokenReserve.mul(2).mul(1000-exp).mul(usdtSoldNet).div(usdtReserveNew).div(1000);
-        uint256 minted=1000-exp;
-        minted = minted.mul(tokenReserve);
-        minted = minted.mul(2);
-        minted = minted.mul(usdtSoldNet);
-        minted = minted.div(usdtReserveNew);
-        minted = minted.div(1000);
-        return minted;
-    }
-
-  /**
-   * @dev Internal function to get k exponential factor
-   *
-   */
-    function _getKX(uint256 pool, uint256 trade, uint256 exp) private pure returns (uint256) {
+    function _getKXe(uint256 pool, uint256 trade, uint256 exp) private pure returns (uint256) {
         uint256 temp = 1000-exp;
         temp = trade.mul(temp);
         temp = temp.div(1000);
         temp = temp.add(pool);
         temp = temp.mul(1000000000);
-        uint256 kexp = temp.div(pool);         //uint256 kexp = usdtSoldNet.mul(1000-exp).div(1000).add(usdtReserve).mul(1000).div(usdtReserve);
+        uint256 kexp = temp.div(pool);
+        return kexp;
+    }
+
+  /**
+   * @dev Internal function to get k exponential factor for damping
+   *
+   */
+    function _getKXd(uint256 pool, uint256 trade, uint256 exp) private pure returns (uint256) {
+        uint256 temp = 1000-exp;
+        temp = trade.mul(temp);
+        temp = temp.div(1000);
+        temp = temp.add(pool);
+        uint256 kexp = pool.mul(1000000000).div(temp);
         return kexp;
     }
 
@@ -173,18 +171,20 @@ contract UstxDEX is ERC20,ReentrancyGuard,Pausable {
 
         (uint256 exp,) = _getExp(tokenReserve,usdtReserve);
 
-        uint256 kexp = _getKX(usdtReserve,usdtSoldNet,exp);
+        uint256 kexp = _getKXe(usdtReserve,usdtSoldNet,exp);
 
-        uint256 temp = tokenReserve.mul(usdtReserve);
+        uint256 temp = tokenReserve.mul(usdtReserve);       //k
         temp = temp.mul(kexp);
         temp = temp.mul(kexp);
         uint256 kn = temp.div(1000000000000000000);                 //uint256 kn=tokenReserve.mul(usdtReserve).mul(kexp).mul(kexp).div(1000000);
 
-        temp = usdtReserve.add(usdtSoldNet);          //uint256 usdtReserveNew= usdtReserve.add(usdtSoldNet);
+        temp = tokenReserve.mul(usdtReserve);               //k
+        usdtReserve = usdtReserve.add(usdtSoldNet);          //uint256 usdtReserveNew= usdtReserve.add(usdtSoldNet);
+        temp = temp.div(usdtReserve);                       //USTXamm
+        uint256 tokensBought = tokenReserve.sub(temp);      //out=tokenReserve-USTXamm
 
-        uint256 minted=_getMinted(tokenReserve,exp,usdtSoldNet,temp);
-        temp = kn.div(temp);
-        uint256 tokensBought=minted.add(tokenReserve).sub(temp);
+        temp=kn.div(usdtReserve);                           //USXTPool_n
+        uint256 minted=temp.add(tokensBought).sub(tokenReserve);
 
         return (tokensBought, minted, fees);
     }
@@ -215,44 +215,46 @@ contract UstxDEX is ERC20,ReentrancyGuard,Pausable {
     }
 
   /**
-   * @dev Internal function to get number of tokens burned
-   *
-   */
-    function _getBurned(uint256 damp, uint256 tokenSold) private pure returns (uint256) {
-        //uint256 burned
-        uint256 burned=1000-damp;
-        burned = burned.mul(tokenSold);
-        burned = burned.mul(2);
-        burned = burned.div(1000);
-        return burned;
-    }
-
-  /**
    * @dev Internal function to get number of USDT bought and tokens burned
    *
    */
     function _getBoughtBurned(uint256 tokenSold, uint256 tokenReserve, uint256 usdtReserve) private view returns (uint256,uint256,uint256) {
         (uint256 damp,) = _getDamp(tokenReserve,usdtReserve);
 
-        uint256 kexp = _getKX(tokenReserve,tokenSold,damp);
+        uint256 kexp = _getKXd(tokenReserve,tokenSold,damp);
 
-        uint256 temp = tokenReserve.mul(usdtReserve);
+        uint256 k = tokenReserve.mul(usdtReserve);           //k
+        uint256 temp = k.mul(kexp);
         temp = temp.mul(kexp);
-        temp = temp.mul(kexp);
-        uint256 kn = temp.div(1000000000000000000);                 //uint256 kn=tokenReserve.mul(usdtReserve).mul(kexp).mul(kexp).div(1000000);
+        uint256 kn = temp.div(1000000000000000000);             //uint256 kn=tokenReserve.mul(usdtReserve).mul(kexp).mul(kexp).div(1000000);
 
-        temp = tokenReserve.add(tokenSold);        //USTXpool_n
-        uint256 temp2 = kn.div(temp);               //USDPool_n
+        tokenReserve = tokenReserve.add(tokenSold);             //USTXpool_n
+        temp = k.div(tokenReserve);                             //USDamm
+        uint256 usdtsBought = usdtReserve.sub(temp);            //out
+        usdtReserve = temp;
 
-        uint256 burned=_getBurned(damp,tokenSold);
-        tokenReserve = temp.sub(burned);                         //USTXpool_
-        temp2 = tokenReserve.mul(temp2).div(temp);         //USDPool_n
+        temp = kn.div(usdtReserve);                             //USTXPool_n
 
-        uint256 usdtsBought = usdtReserve.sub(temp2);
+        uint256 burned=tokenReserve.sub(temp);
+
         temp = usdtsBought.mul(_feeSell).div(10000);       //fee
         usdtsBought = usdtsBought.sub(temp);
 
         return (usdtsBought, burned, temp);
+    }
+
+  /**
+   * @dev Public function to preview token purchase with exact input in USDT
+   *
+   */
+    function buyStableInputPreview(uint256 usdtSold) public view returns (uint256) {
+        require(usdtSold > 0);
+        uint256 tokenReserve = Token.balanceOf(address(this));
+        uint256 usdtReserve = Tusdt.balanceOf(address(this));
+
+        (uint256 tokensBought,,) = _getBoughtMinted(usdtSold,tokenReserve,usdtReserve);
+
+        return tokensBought;
     }
 
   /**
@@ -301,6 +303,20 @@ contract UstxDEX is ERC20,ReentrancyGuard,Pausable {
 
         return tokensBought;
     }
+
+  /**
+   * @dev Public function to preview token sale with exact input in tokens
+   *
+   */
+  function sellStableInputPreview(uint256 tokensSold) public view returns (uint256) {
+        require(tokensSold > 0);
+        uint256 tokenReserve = Token.balanceOf(address(this));
+        uint256 usdtReserve = Tusdt.balanceOf(address(this));
+
+        (uint256 usdtsBought,,) = _getBoughtBurned(tokensSold,tokenReserve,usdtReserve);
+
+        return usdtsBought;
+  }
 
   /**
    * @dev Internal function to sell tokens with exact input in tokens
@@ -387,6 +403,26 @@ contract UstxDEX is ERC20,ReentrancyGuard,Pausable {
     return _sellStableInput(tokensSold, minUsdts, deadline, msg.sender, recipient);
   }
 
+    /**
+    * @dev public function to setup the reserve after launchpad
+    *
+    */
+    function setupReserve(uint256 startPrice) public onlyAdmin whenPaused returns (uint256) {
+        require(startPrice>0,"Price cannot be 0");
+        uint256 tokenReserve = Token.balanceOf(address(this));
+        uint256 usdtReserve = Tusdt.balanceOf(address(this));
+
+        uint256 newReserve = usdtReserve.mul(10**decimals).div(startPrice);
+        uint256 temp;
+        if (newReserve>tokenReserve) {
+            temp = newReserve.sub(tokenReserve);
+            Token.mint(address(this),temp);
+        } else {
+            temp = tokenReserve.sub(newReserve);
+            Token.burn(temp);
+        }
+        return newReserve;
+    }
 
   /**************************************|
   |     Getter and Setter Functions      |
@@ -396,7 +432,7 @@ contract UstxDEX is ERC20,ReentrancyGuard,Pausable {
    * @dev function to set Token address (only admin)
    *
    */
-    function setToken(address tokenAddress) public onlyAdmin {
+    function setTokenAddr(address tokenAddress) public onlyAdmin {
         require(tokenAddress != address(0), "INVALID_ADDRESS");
         Token = UpStableToken(tokenAddress);
     }
@@ -405,7 +441,7 @@ contract UstxDEX is ERC20,ReentrancyGuard,Pausable {
    * @dev function to set USDT address (only admin)
    *
    */
-    function setReserve(address reserveAddress) public onlyAdmin {
+    function setReserveTokenAddr(address reserveAddress) public onlyAdmin {
         require(reserveAddress != address(0), "INVALID_ADDRESS");
         Tusdt = IERC20(reserveAddress);
     }
