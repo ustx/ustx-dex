@@ -21,14 +21,14 @@ contract UpStableToken is ERC20,ERC20Detailed,Pausable,ReentrancyGuard {
         }
 
 
-    function calcFee(uint256 _value) public view returns (uint256) {
+    function _calcFee(uint256 _value) private view returns (uint256) {
       uint256 fee = (_value.mul(_basisPointsRate)).div(10000);
 
       return fee;
     }
 
     function transfer(address _to, uint256 _value) public whenNotPaused returns (bool) {
-      uint256 fee = calcFee(_value);
+      uint256 fee = _calcFee(_value);
       if (isAdmin(_msgSender())){   //no fees if sender is admin (DEX included)
           fee = 0;
       }
@@ -43,7 +43,7 @@ contract UpStableToken is ERC20,ERC20Detailed,Pausable,ReentrancyGuard {
     }
 
     function transferFrom(address _from, address _to, uint256 _value) public whenNotPaused returns (bool) {
-      uint256 fee = calcFee(_value);
+      uint256 fee = _calcFee(_value);
       if (isAdmin(_msgSender())){   //no fees if sender is admin (DEX included)
           fee = 0;
       }
