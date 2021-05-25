@@ -1,0 +1,208 @@
+{
+	"author": "USTX Team",
+	"details": "This contract implements the DEX functionality for the USTX token.",
+	"methods": {
+		"buyStableInputPreview(uint256)": {
+			"details": "Public function to preview token purchase with exact input in USDT",
+			"params": {
+				"usdtSold": "amount of USDT to sell"
+			},
+			"return": "number of tokens to purchase"
+		},
+		"buyTokenInput(uint256,uint256)": {
+			"details": "Public function to buy tokens",
+			"params": {
+				"minTokens": "minimum amount of tokens to buy",
+				"rSell": "amount of UDST to sell"
+			},
+			"return": "number of tokens bought"
+		},
+		"buyTokenLaunchInput(uint256,uint256)": {
+			"details": "Public function to buy tokens during launchpad",
+			"params": {
+				"minTokens": "minimum amount of tokens to buy",
+				"rSell": "amount of UDST to sell"
+			},
+			"return": "number of tokens bought"
+		},
+		"buyTokenLaunchTransferInput(uint256,uint256,address)": {
+			"details": "Public function to buy tokens during launchpad and transfer them to recipient",
+			"params": {
+				"minTokens": "minimum amount of tokens to buy",
+				"rSell": "amount of UDST to sell",
+				"recipient": "recipient of the transaction"
+			},
+			"return": "number of tokens bought"
+		},
+		"buyTokenTransferInput(uint256,uint256,address)": {
+			"details": "Public function to buy tokens and transfer them to recipient",
+			"params": {
+				"minTokens": "minimum amount of tokens to buy",
+				"rSell": "amount of UDST to sell",
+				"recipient": "recipient of the transaction"
+			},
+			"return": "number of tokens bought"
+		},
+		"constructor": {
+			"details": "Constructor",
+			"params": {
+				"reserveTokenAddr": "contract address of the reserve token (USDT)",
+				"tradeTokenAddr": "contract address of the traded token (USTX)"
+			}
+		},
+		"disableLaunchpad()": {
+			"details": "Function to disable launchpad (only admin) \t*"
+		},
+		"enableLaunchpad(uint256,uint256,uint256,uint256)": {
+			"details": "Function to enable launchpad (only admin)",
+			"params": {
+				"fee": "launchpad fee for the dev team (in basis points)",
+				"maxLot": "launchpad maximum purchase size in USDT",
+				"price": "launchpad fixed price",
+				"target": "launchpad target USTX sale"
+			},
+			"return": "true if launchpad is enabled"
+		},
+		"getBalances()": {
+			"details": "Function to get current reserves balance",
+			"return": "USDT reserve, USTX reserve, USTX circulating"
+		},
+		"getBuyTokenInputPrice(uint256)": {
+			"details": "Public price function for USDT to Token trades with an exact input.",
+			"params": {
+				"tUSDTs_sold": "Amount of USDT sold."
+			},
+			"return": "Amount of Tokens that can be bought with input USDT."
+		},
+		"getCurrentRatio()": {
+			"details": "Function to get currect reserve ratio level return current ratio in thousandths \t"
+		},
+		"getDampFactors()": {
+			"details": "Function to get damping factors",
+			"return": "_dampFactor and _maxDamp in thousandths \t"
+		},
+		"getExpFactors()": {
+			"details": "Function to get expansion factors",
+			"return": "_expFactor and _minExp in thousandths \t"
+		},
+		"getFees()": {
+			"details": "Function to get fees",
+			"return": "buy and sell fees in basis points \t"
+		},
+		"getLaunchpadStatus()": {
+			"details": "Function to get launchpad status (only admin)",
+			"return": "enabled state, price, amount of tokens bought, target tokens, max ourschase lot, fee \t"
+		},
+		"getPrice()": {
+			"details": "Function to get current price",
+			"return": "current price \t"
+		},
+		"getReserveAddress()": {
+			"details": "Function to get the address of the reserve token contract",
+			"return": "Address of USDT \t"
+		},
+		"getSellTokenInputPrice(uint256)": {
+			"details": "Public price function for Token to USDT trades with an exact input.",
+			"params": {
+				"tokensSold": "Amount of Tokens sold."
+			},
+			"return": "Amount of USDT that can be bought with input Tokens."
+		},
+		"getTargetRatio()": {
+			"details": "Function to get target ratio level return ratio in thousandths \t"
+		},
+		"getTokenAddress()": {
+			"details": "Function to get address of the traded token contract",
+			"return": "Address of token that is traded on this exchange \t"
+		},
+		"pause()": {
+			"details": "Called by a pauser to pause, triggers stopped state."
+		},
+		"paused()": {
+			"details": "Returns true if the contract is paused, and false otherwise."
+		},
+		"sellStableInputPreview(uint256)": {
+			"details": "Public function to preview token sale with exact input in tokens",
+			"params": {
+				"tokensSold": "amount of token to sell"
+			},
+			"return": "number of USTD to purchase"
+		},
+		"sellTokenInput(uint256,uint256)": {
+			"details": "Public function to sell tokens",
+			"params": {
+				"minUsdts": "minimum number of UDST to buy",
+				"tokensSold": "number of tokens to sell"
+			},
+			"return": "number of USDTs bought"
+		},
+		"sellTokenTransferInput(uint256,uint256,address)": {
+			"details": "Public function to sell tokens and trasnfer USDT to recipient",
+			"params": {
+				"minUsdts": "minimum number of UDST to buy",
+				"recipient": "recipient of the transaction",
+				"tokensSold": "number of tokens to sell"
+			},
+			"return": "number of USDTs bought"
+		},
+		"setDampFactors(uint256,uint256)": {
+			"details": "Function to set target damping factors (only admin)",
+			"params": {
+				"dampF": "damping factor (in thousandths)",
+				"maxDamp": "maximum damping to use (in thousandths)"
+			}
+		},
+		"setExpFactors(uint256,uint256)": {
+			"details": "Function to set target expansion factors (only admin)",
+			"params": {
+				"expF": "expansion factor (in thousandths)",
+				"minExp": "minimum expansion coefficient to use (in thousandths)"
+			}
+		},
+		"setFees(uint256,uint256)": {
+			"details": "Function to set fees (only admin)",
+			"params": {
+				"feeBuy": "fee for buy operations (in basis points)",
+				"feeSell": "fee for sell operations (in basis points)"
+			}
+		},
+		"setReserveTokenAddr(address)": {
+			"details": "Function to set USDT address (only admin)",
+			"params": {
+				"reserveAddress": "address of the reserve token contract"
+			}
+		},
+		"setTargetRatio(uint256)": {
+			"details": "Function to set target ratio level (only admin)",
+			"params": {
+				"ratio": "target reserve ratio (in thousandths) \t"
+			}
+		},
+		"setTeamAddress(address)": {
+			"details": "Set team address (only admin)",
+			"params": {
+				"team": "address for collecting fees"
+			}
+		},
+		"setTokenAddr(address)": {
+			"details": "Function to set Token address (only admin)",
+			"params": {
+				"tokenAddress": "address of the traded token contract"
+			}
+		},
+		"setupReserve(uint256)": {
+			"details": "public function to setup the reserve after launchpad",
+			"params": {
+				"startPrice": "target price"
+			},
+			"return": "reserve value"
+		},
+		"unpause()": {
+			"details": "Called by a pauser to unpause, returns to normal state."
+		},
+		"unregisterAdmin()": {
+			"details": "Unregister DEX as admin from USTX contract \t "
+		}
+	},
+	"title": "Up Stable Token eXperiment DEX"
+}
