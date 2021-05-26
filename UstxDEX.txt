@@ -2,13 +2,6 @@
 	"author": "USTX Team",
 	"details": "This contract implements the DEX functionality for the USTX token.",
 	"methods": {
-		"buyStableInputPreview(uint256)": {
-			"details": "Public function to preview token purchase with exact input in USDT",
-			"params": {
-				"usdtSold": "amount of USDT to sell"
-			},
-			"return": "number of tokens that can be purchased with input usdtSold"
-		},
 		"buyTokenInput(uint256,uint256)": {
 			"details": "Public function to buy tokens",
 			"params": {
@@ -16,6 +9,13 @@
 				"rSell": "amount of UDST to sell"
 			},
 			"return": "number of tokens bought"
+		},
+		"buyTokenInputPreview(uint256)": {
+			"details": "Public function to preview token purchase with exact input in USDT",
+			"params": {
+				"usdtSold": "amount of USDT to sell"
+			},
+			"return": "number of tokens that can be purchased with input usdtSold"
 		},
 		"buyTokenLaunchInput(uint256,uint256)": {
 			"details": "Public function to buy tokens during launchpad",
@@ -107,13 +107,6 @@
 		"paused()": {
 			"details": "Returns true if the contract is paused, and false otherwise."
 		},
-		"sellStableInputPreview(uint256)": {
-			"details": "Public function to preview token sale with exact input in tokens",
-			"params": {
-				"tokensSold": "amount of token to sell"
-			},
-			"return": "Amount of USDT that can be bought with input Tokens."
-		},
 		"sellTokenInput(uint256,uint256)": {
 			"details": "Public function to sell tokens",
 			"params": {
@@ -121,6 +114,13 @@
 				"tokensSold": "number of tokens to sell"
 			},
 			"return": "number of USDTs bought"
+		},
+		"sellTokenInputPreview(uint256)": {
+			"details": "Public function to preview token sale with exact input in tokens",
+			"params": {
+				"tokensSold": "amount of token to sell"
+			},
+			"return": "Amount of USDT that can be bought with input Tokens."
 		},
 		"sellTokenTransferInput(uint256,uint256,address)": {
 			"details": "Public function to sell tokens and trasnfer USDT to recipient",
