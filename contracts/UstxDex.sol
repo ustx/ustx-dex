@@ -91,7 +91,7 @@ contract UstxDEX is ReentrancyGuard,Pausable {
 	* @param usdtSold amount of USDT to sell
 	* @return number of tokens that can be purchased with input usdtSold
 	*/
-	function buyStableInputPreview(uint256 usdtSold) public view returns (uint256) {
+	function buyTokenInputPreview(uint256 usdtSold) public view returns (uint256) {
 		require(usdtSold > 0, "USDT sold must greater than 0");
 		uint256 tokenReserve = Token.balanceOf(address(this));
 		uint256 usdtReserve = Tusdt.balanceOf(address(this));
@@ -106,7 +106,7 @@ contract UstxDEX is ReentrancyGuard,Pausable {
 	* @param tokensSold amount of token to sell
 	* @return Amount of USDT that can be bought with input Tokens.
 	*/
-	function sellStableInputPreview(uint256 tokensSold) public view returns (uint256) {
+	function sellTokenInputPreview(uint256 tokensSold) public view returns (uint256) {
 		require(tokensSold > 0, "Tokens sold must greater than 0");
 		uint256 tokenReserve = Token.balanceOf(address(this));
 		uint256 usdtReserve = Tusdt.balanceOf(address(this));
