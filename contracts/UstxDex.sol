@@ -30,7 +30,8 @@ contract UstxDEX is ReentrancyGuard,Pausable {
 	uint256 private _decimals;			// 6
 	uint256 private _feeBuy;			//buy fee in basis points
 	uint256 private _feeSell;			//sell fee in basis points
-	uint256 private _targetRatio;		//target reserve ratio in TH (1000s) to circulating cap
+	uint256 private _targetRatioExp;	//target reserve ratio for expansion in TH (1000s) to circulating cap
+	uint256 private _targetRatioDamp;	//target reserve ratio for damping in TH (1000s) to circulating cap
 	uint256 private _expFactor;			//expansion factor in TH
 	uint256 private _dampFactor;		//damping factor in TH
 	uint256 private _minExp;			//minimum expansion in TH
@@ -69,13 +70,14 @@ contract UstxDEX is ReentrancyGuard,Pausable {
 		Tusdt = IERC20(reserveTokenAddr);
 		_launchTeamAddr = _msgSender();
 		_decimals = 6;
-		_feeBuy = 0; //0%
-		_feeSell = 100; //1%
-		_targetRatio = 200;
+		_feeBuy = 0;                    //0%
+		_feeSell = 100;                 //1%
+		_targetRatioExp = 190;          //19%
+		_targetRatioDamp = 210;         //21%
 		_expFactor = 1000;
 		_dampFactor = 1000;
 		_minExp = 100;
-		_maxDamp = 250;
+		_maxDamp = 100;
 		_collectedFees = 0;
 		_launchEnabled = 0;
 	}
@@ -87,10 +89,10 @@ contract UstxDEX is ReentrancyGuard,Pausable {
 	/**
 	* @dev Public function to preview token purchase with exact input in USDT
 	* @param usdtSold amount of USDT to sell
-	* @return number of tokens to purchase
+	* @return number of tokens that can be purchased with input usdtSold
 	*/
 	function buyStableInputPreview(uint256 usdtSold) public view returns (uint256) {
-		require(usdtSold > 0);
+		require(usdtSold > 0, "USDT sold must greater than 0");
 		uint256 tokenReserve = Token.balanceOf(address(this));
 		uint256 usdtReserve = Tusdt.balanceOf(address(this));
 
@@ -102,10 +104,10 @@ contract UstxDEX is ReentrancyGuard,Pausable {
 	/**
 	* @dev Public function to preview token sale with exact input in tokens
 	* @param tokensSold amount of token to sell
-	* @return number of USTD to purchase
+	* @return Amount of USDT that can be bought with input Tokens.
 	*/
 	function sellStableInputPreview(uint256 tokensSold) public view returns (uint256) {
-		require(tokensSold > 0);
+		require(tokensSold > 0, "Tokens sold must greater than 0");
 		uint256 tokenReserve = Token.balanceOf(address(this));
 		uint256 usdtReserve = Tusdt.balanceOf(address(this));
 
@@ -307,7 +309,7 @@ contract UstxDEX is ReentrancyGuard,Pausable {
 		uint256 price = getPrice();         //multiplied by 10**decimals
 		uint256 cirCap = price.mul(tokenCirc);      //multiplied by 10**decimals
 		uint256 ratio = usdtReserve.mul(1000000000).div(cirCap);
-		uint256 exp = ratio.mul(1000).div(_targetRatio);
+		uint256 exp = ratio.mul(1000).div(_targetRatioExp);
 		if (exp<1000) {
 			exp=1000;
 		}
@@ -387,11 +389,11 @@ contract UstxDEX is ReentrancyGuard,Pausable {
 		uint256 price = getPrice();         //multiplied by 10**decimals
 		uint256 cirCap = price.mul(tokenCirc);      //multiplied by 10**decimals
 		uint256 ratio = usdtReserve.mul(1000000000).div(cirCap);  //in TH
-		if (ratio>_targetRatio) {
-	    	ratio=_targetRatio;
+		if (ratio>_targetRatioDamp) {
+	    	ratio=_targetRatioDamp;
 		}
-		uint256 damp = _targetRatio.sub(ratio);
-		damp = damp.mul(_dampFactor).div(_targetRatio);
+		uint256 damp = _targetRatioDamp.sub(ratio);
+		damp = damp.mul(_dampFactor).div(_targetRatioDamp);
 
 		if (damp<_maxDamp) {
     		damp=_maxDamp;
@@ -475,21 +477,22 @@ contract UstxDEX is ReentrancyGuard,Pausable {
 
 	/**
 	* @dev Function to set target ratio level (only admin)
-	* @param ratio target reserve ratio (in thousandths)
-	*
+	* @param ratioExp target reserve ratio for expansion (in thousandths)
+	* @param ratioDamp target reserve ratio for damping (in thousandths)
 	*/
-	function setTargetRatio(uint256 ratio) public onlyAdmin {
-	    require(ratio<=1000 && ratio>=10,"Target ratio must be between 1% and 100%");
-	    _targetRatio = ratio;       //in TH
+	function setTargetRatio(uint256 ratioExp, uint256 ratioDamp) public onlyAdmin {
+	    require(ratioExp<=1000 && ratioExp>=10 && ratioDamp<=1000 && ratioDamp >=10,"Target ratio must be between 1% and 100%");
+	    _targetRatioExp = ratioExp;         //in TH
+	    _targetRatioDamp = ratioDamp;       //in TH
 	}
 
 	/**
 	* @dev Function to get target ratio level
-	* return ratio in thousandths
+	* return ratioExp and ratioDamp in thousandths
 	*
 	*/
-	function getTargetRatio() public view returns (uint256) {
-    	return _targetRatio;
+	function getTargetRatio() public view returns (uint256, uint256) {
+    	return (_targetRatioExp, _targetRatioDamp);
 	}
 
 	/**
@@ -561,34 +564,6 @@ contract UstxDEX is ReentrancyGuard,Pausable {
 			uint256 usdtReserve = Tusdt.balanceOf(address(this));
 			return (usdtReserve.mul(10**_decimals).div(tokenReserve));      //price with decimals
 		}
-	}
-
-	/**
-	* @dev Public price function for USDT to Token trades with an exact input.
-	* @param tUSDTs_sold Amount of USDT sold.
-	* @return Amount of Tokens that can be bought with input USDT.
-	*/
-	function getBuyTokenInputPrice(uint256 tUSDTs_sold) public view returns (uint256) {
-		require(tUSDTs_sold > 0, "USDT sold must greater than 0");
-		uint256 tokenReserve = Token.balanceOf(address(this));
-		uint256 usdtReserve = Tusdt.balanceOf(address(this));
-
-		(uint256 tokensBought,,) = _getBoughtMinted(tUSDTs_sold,tokenReserve,usdtReserve);
-		return tokensBought;
-	}
-
-	/**
-	* @dev Public price function for Token to USDT trades with an exact input.
-	* @param tokensSold Amount of Tokens sold.
-	* @return Amount of USDT that can be bought with input Tokens.
-	*/
-	function getSellTokenInputPrice(uint256 tokensSold) public view returns (uint256) {
-		require(tokensSold > 0, "tokens sold must greater than 0");
-		uint256 tokenReserve = Token.balanceOf(address(this));
-		uint256 usdtReserve = Tusdt.balanceOf(address(this));
-
-		(uint256 usdtsBought,,) = _getBoughtBurned(tokensSold,tokenReserve,usdtReserve);
-		return usdtsBought;
 	}
 
 	/**

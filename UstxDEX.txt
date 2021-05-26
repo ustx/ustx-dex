@@ -7,7 +7,7 @@
 			"params": {
 				"usdtSold": "amount of USDT to sell"
 			},
-			"return": "number of tokens to purchase"
+			"return": "number of tokens that can be purchased with input usdtSold"
 		},
 		"buyTokenInput(uint256,uint256)": {
 			"details": "Public function to buy tokens",
@@ -67,13 +67,6 @@
 			"details": "Function to get current reserves balance",
 			"return": "USDT reserve, USTX reserve, USTX circulating"
 		},
-		"getBuyTokenInputPrice(uint256)": {
-			"details": "Public price function for USDT to Token trades with an exact input.",
-			"params": {
-				"tUSDTs_sold": "Amount of USDT sold."
-			},
-			"return": "Amount of Tokens that can be bought with input USDT."
-		},
 		"getCurrentRatio()": {
 			"details": "Function to get currect reserve ratio level return current ratio in thousandths \t"
 		},
@@ -101,15 +94,8 @@
 			"details": "Function to get the address of the reserve token contract",
 			"return": "Address of USDT \t"
 		},
-		"getSellTokenInputPrice(uint256)": {
-			"details": "Public price function for Token to USDT trades with an exact input.",
-			"params": {
-				"tokensSold": "Amount of Tokens sold."
-			},
-			"return": "Amount of USDT that can be bought with input Tokens."
-		},
 		"getTargetRatio()": {
-			"details": "Function to get target ratio level return ratio in thousandths \t"
+			"details": "Function to get target ratio level return ratioExp and ratioDamp in thousandths \t"
 		},
 		"getTokenAddress()": {
 			"details": "Function to get address of the traded token contract",
@@ -126,7 +112,7 @@
 			"params": {
 				"tokensSold": "amount of token to sell"
 			},
-			"return": "number of USTD to purchase"
+			"return": "Amount of USDT that can be bought with input Tokens."
 		},
 		"sellTokenInput(uint256,uint256)": {
 			"details": "Public function to sell tokens",
@@ -172,10 +158,11 @@
 				"reserveAddress": "address of the reserve token contract"
 			}
 		},
-		"setTargetRatio(uint256)": {
+		"setTargetRatio(uint256,uint256)": {
 			"details": "Function to set target ratio level (only admin)",
 			"params": {
-				"ratio": "target reserve ratio (in thousandths) \t"
+				"ratioDamp": "target reserve ratio for damping (in thousandths)",
+				"ratioExp": "target reserve ratio for expansion (in thousandths)"
 			}
 		},
 		"setTeamAddress(address)": {
