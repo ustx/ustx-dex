@@ -6,9 +6,8 @@ import "./ERC20.sol";
 import "./ERC20Detailed.sol";
 import "./AdminRole.sol";
 import "./Pausable.sol";
-import "./ReentrancyGuard.sol";
 
-contract UpStableToken is ERC20,ERC20Detailed,Pausable,ReentrancyGuard {
+contract UpStableToken is ERC20,ERC20Detailed,Pausable {
     uint256 private _basisPointsRate = 0;
     uint256 private constant MAX_SETTABLE_BASIS_POINTS = 100;
     address private _feeAddress;
