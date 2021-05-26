@@ -126,7 +126,7 @@ contract UstxDEX is ReentrancyGuard,Pausable {
 		require(_launchEnabled>0,"Function allowed only during launchpad");
 		require(_launchBought<_launchTargetSize,"Launchpad target reached!");
 		require(rSell<=_launchMaxLot,"Order too big for Launchpad");
-		return _buyLaunchpadInput(rSell, minTokens, msg.sender, msg.sender);
+		return _buyLaunchpadInput(rSell, minTokens, _msgSender(), _msgSender());
 	}
 
 	/**
@@ -141,7 +141,7 @@ contract UstxDEX is ReentrancyGuard,Pausable {
 		require(recipient != address(this) && recipient != address(0),"Recipient cannot be DEX or address 0");
 		require(_launchBought<_launchTargetSize,"Launchpad target reached!");
 		require(rSell<=_launchMaxLot,"Order too big for Launchpad");
-		return _buyLaunchpadInput(rSell, minTokens, msg.sender, recipient);
+		return _buyLaunchpadInput(rSell, minTokens, _msgSender(), recipient);
 	}
 
 	/**
@@ -152,7 +152,7 @@ contract UstxDEX is ReentrancyGuard,Pausable {
 	*/
 	function  buyTokenInput(uint256 rSell, uint256 minTokens)  public whenNotPaused returns (uint256)  {
 		require(_launchEnabled==0,"Function not allowed during launchpad");
-		return _buyStableInput(rSell, minTokens, msg.sender, msg.sender);
+		return _buyStableInput(rSell, minTokens, _msgSender(), _msgSender());
 	}
 
 	/**
@@ -165,7 +165,7 @@ contract UstxDEX is ReentrancyGuard,Pausable {
 	function buyTokenTransferInput(uint256 rSell, uint256 minTokens, address recipient) public whenNotPaused returns(uint256) {
 		require(_launchEnabled==0,"Function not allowed during launchpad");
 		require(recipient != address(this) && recipient != address(0),"Recipient cannot be DEX or address 0");
-		return _buyStableInput(rSell, minTokens, msg.sender, recipient);
+		return _buyStableInput(rSell, minTokens, _msgSender(), recipient);
 	}
 
 	/**
@@ -176,7 +176,7 @@ contract UstxDEX is ReentrancyGuard,Pausable {
 	*/
 	function sellTokenInput(uint256 tokensSold, uint256 minUsdts) public whenNotPaused returns (uint256) {
 		require(_launchEnabled==0,"Function not allowed during launchpad");
-		return _sellStableInput(tokensSold, minUsdts, msg.sender, msg.sender);
+		return _sellStableInput(tokensSold, minUsdts, _msgSender(), _msgSender());
 	}
 
 	/**
@@ -189,7 +189,7 @@ contract UstxDEX is ReentrancyGuard,Pausable {
 	function sellTokenTransferInput(uint256 tokensSold, uint256 minUsdts, address recipient) public whenNotPaused returns (uint256) {
 		require(_launchEnabled==0,"Function not allowed during launchpad");
 		require(recipient != address(this) && recipient != address(0),"Recipient cannot be DEX or address 0");
-		return _sellStableInput(tokensSold, minUsdts, msg.sender, recipient);
+		return _sellStableInput(tokensSold, minUsdts, _msgSender(), recipient);
 	}
 
 	/**
