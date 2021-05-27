@@ -1,6 +1,5 @@
 # USTX contracts
 
-Files
 * **AdminRole.sol**, based on OpenZeppelin v2.5.1
   * Modified to implement Admin role
 * **Context.sol**, same as OpenZeppelin v2.5.1
