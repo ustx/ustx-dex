@@ -72,12 +72,12 @@ contract UstxDEX is ReentrancyGuard,Pausable {
 		_decimals = 6;
 		_feeBuy = 0;                    //0%
 		_feeSell = 100;                 //1%
-		_targetRatioExp = 190;          //19%
-		_targetRatioDamp = 210;         //21%
-		_expFactor = 1000;
-		_dampFactor = 1000;
-		_minExp = 100;
-		_maxDamp = 100;
+		_targetRatioExp = 240;          //24%
+		_targetRatioDamp = 260;         //26%
+		_expFactor = 1000;              //1
+		_dampFactor = 1000;             //1
+		_minExp = 100;                  //0.1
+		_maxDamp = 100;                 //0.1
 		_collectedFees = 0;
 		_launchEnabled = 0;
 	}
