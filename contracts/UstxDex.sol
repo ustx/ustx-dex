@@ -65,7 +65,7 @@ contract UstxDEX is ReentrancyGuard,Pausable {
 	constructor (address tradeTokenAddr, address reserveTokenAddr)
 	AdminRole(2)        //at least two administrsators always in charge
 	public {
-		require(tradeTokenAddr != address(0) && reserveTokenAddr != address(0),"INVALID_ADDRESS");
+		require(tradeTokenAddr != address(0) && reserveTokenAddr != address(0), "Invalid contract address");
 		Token = UpStableToken(tradeTokenAddr);
 		Tusdt = IERC20(reserveTokenAddr);
 		_launchTeamAddr = _msgSender();
@@ -219,14 +219,14 @@ contract UstxDEX is ReentrancyGuard,Pausable {
 	*
 	*/
 	function _buyStableInput(uint256 usdtSold, uint256 minTokens, address buyer, address recipient) private nonReentrant returns (uint256) {
-		require(usdtSold > 0 && minTokens > 0);
+		require(usdtSold > 0 && minTokens > 0,"USDT sold and min tokens should be higher than 0");
 		uint256 tokenReserve = Token.balanceOf(address(this));
 		uint256 usdtReserve = Tusdt.balanceOf(address(this));
 
 		(uint256 tokensBought, uint256 minted, uint256 fee) = _getBoughtMinted(usdtSold,tokenReserve,usdtReserve);
 		_collectedFees = _collectedFees.add(fee);
 
-		require(tokensBought >= minTokens);
+		require(tokensBought >= minTokens, "Tokens bought lower than requested minimum amount");
 		if (minted>0) {
 			Token.mint(address(this),minted);
 		}
@@ -251,12 +251,12 @@ contract UstxDEX is ReentrancyGuard,Pausable {
 	*
 	*/
 	function _buyLaunchpadInput(uint256 usdtSold, uint256 minTokens, address buyer, address recipient) private nonReentrant returns (uint256) {
-		require(usdtSold > 0 && minTokens > 0);
+		require(usdtSold > 0 && minTokens > 0, "USDT sold and min tokens should be higher than 0");
 
 		uint256 tokensBought = usdtSold.mul(10**_decimals).div(_launchPrice);
 		uint256 fee = usdtSold.mul(_launchFee).div(10000);
 
-		require(tokensBought >= minTokens);
+		require(tokensBought >= minTokens, "Tokens bought lower than requested minimum amount");
 		_launchBought = _launchBought.add(tokensBought);
 		Token.mint(address(this),tokensBought);                     //mint new tokens
 
@@ -274,14 +274,14 @@ contract UstxDEX is ReentrancyGuard,Pausable {
 	*
 	*/
 	function _sellStableInput(uint256 tokensSold, uint256 minUsdts, address buyer, address recipient) private nonReentrant returns (uint256) {
-		require(tokensSold > 0 && minUsdts > 0);
+		require(tokensSold > 0 && minUsdts > 0, "Tokens sold and min USDT should be higher than 0");
 		uint256 tokenReserve = Token.balanceOf(address(this));
 		uint256 usdtReserve = Tusdt.balanceOf(address(this));
 
 		(uint256 usdtsBought, uint256 burned, uint256 fee) = _getBoughtBurned(tokensSold,tokenReserve,usdtReserve);
 		_collectedFees = _collectedFees.add(fee);
 
-		require(usdtsBought >= minUsdts);
+		require(usdtsBought >= minUsdts, "USDT bought lower than requested minimum amount");
 	 	if (burned>0) {
 	    	Token.burn(burned);
 		}
@@ -637,7 +637,7 @@ contract UstxDEX is ReentrancyGuard,Pausable {
 	* @param team address for collecting fees
 	*/
 	function setTeamAddress(address team) public onlyAdmin {
-		require(team != address(0) && team != address(this));
+		require(team != address(0) && team != address(this), "Invalid team address");
 		_launchTeamAddr = team;
 	}
 

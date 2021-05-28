@@ -21,13 +21,13 @@ contract UpStableToken is ERC20,ERC20Detailed,Pausable {
 	event FeeChanged(uint256 feeBasisPoints);
 
 	/**
-	* @dev Constructor
+	* @dev Constructor for UpStableToken, USTX, 6 decimals, 3 administrators
 	*
 	*
 	*/
 	constructor()
 	    ERC20Detailed("UpStableToken", "USTX", 6)
-	    AdminRole(3)        //at least two administrators always in charge + the dex contract
+	    AdminRole(3)        //at least two administrators always in charge + the DEX contract
 	    public {
         	_feeAddress=_msgSender();
 	    }
