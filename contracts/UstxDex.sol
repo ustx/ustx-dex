@@ -7,7 +7,6 @@ import "./ERC20Detailed.sol";
 import "./UpStableToken.sol";
 import "./IERC20.sol";
 import "./ReentrancyGuard.sol";
-import "./SafeERC20.sol";
 import "./Pausable.sol";
 import "./AdminRole.sol";
 import "./SafeMath.sol";
@@ -48,8 +47,8 @@ contract UstxDEX is ReentrancyGuard,Pausable {
 	UpStableToken Token;				// address of the TRC20 token traded on this contract
 	IERC20 Tusdt;						// address of the reserve token USDT
 
-	using SafeERC20 for IERC20;
-	using SafeERC20 for UpStableToken;
+	//SafeERC20 not needed for USDT(TRC20) and USTX(TRC20)
+
 	using SafeMath for uint256;
 
 	// Events
@@ -231,11 +230,11 @@ contract UstxDEX is ReentrancyGuard,Pausable {
 			Token.mint(address(this),minted);
 		}
 
-		Tusdt.safeTransferFrom(buyer, address(this), usdtSold);
+		Tusdt.transferFrom(buyer, address(this), usdtSold);
 		if (fee>0) {
-			Tusdt.safeTransferUSDT(_launchTeamAddr,fee);                //transfer fees to team
+			Tusdt.transfer(_launchTeamAddr,fee);                //transfer fees to team
 		}
-		Token.safeTransfer(address(recipient),tokensBought);
+		Token.transfer(address(recipient),tokensBought);
 
 		tokenReserve = Token.balanceOf(address(this));                //update token reserve
 		usdtReserve = Tusdt.balanceOf(address(this));                 //update usdt reserve
@@ -260,9 +259,9 @@ contract UstxDEX is ReentrancyGuard,Pausable {
 		_launchBought = _launchBought.add(tokensBought);
 		Token.mint(address(this),tokensBought);                     //mint new tokens
 
-		Tusdt.safeTransferFrom(buyer, address(this), usdtSold);     //add usdtSold to reserve
-		Tusdt.safeTransferUSDT(_launchTeamAddr,fee);                //transfer fees to team
-		Token.safeTransfer(address(recipient),tokensBought);        //transfer tokens to recipient
+		Tusdt.transferFrom(buyer, address(this), usdtSold);     //add usdtSold to reserve
+		Tusdt.transfer(_launchTeamAddr,fee);                //transfer fees to team
+		Token.transfer(address(recipient),tokensBought);        //transfer tokens to recipient
 		emit TokenBuy(buyer, usdtSold, tokensBought, _launchPrice);
 		emit Snapshot(buyer, Tusdt.balanceOf(address(this)), Token.balanceOf(address(this)));
 
@@ -285,10 +284,10 @@ contract UstxDEX is ReentrancyGuard,Pausable {
 	 	if (burned>0) {
 	    	Token.burn(burned);
 		}
-		Token.safeTransferFrom(buyer, address(this), tokensSold);       //transfer tokens to DEX
-		Tusdt.safeTransferUSDT(recipient,usdtsBought);                  //transfer USDT to user
+		Token.transferFrom(buyer, address(this), tokensSold);       //transfer tokens to DEX
+		Tusdt.transfer(recipient,usdtsBought);                  //transfer USDT to user
 		if (fee>0) {
-			Tusdt.safeTransferUSDT(_launchTeamAddr,fee);                //transfer fees to team
+			Tusdt.transfer(_launchTeamAddr,fee);                //transfer fees to team
 		}
 		tokenReserve = Token.balanceOf(address(this));                //update token reserve
 		usdtReserve = Tusdt.balanceOf(address(this));                 //update usdt reserve
