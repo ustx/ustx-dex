@@ -13,9 +13,9 @@ import "./Pausable.sol";
 /// @dev This contract implements the functionality of the USTX token.
 contract UpStableToken is ERC20,ERC20Detailed,Pausable {
 	//Variables
-    uint256 private _basisPointsRate = 0;
     uint256 private constant MAX_SETTABLE_BASIS_POINTS = 100;
-    address private _feeAddress;
+    address private _feeAddress;        //fee destination address
+    uint256 private _feeRate;           //fee in basis points
 
 	//Events
 	event FeeChanged(uint256 feeBasisPoints);
@@ -30,6 +30,7 @@ contract UpStableToken is ERC20,ERC20Detailed,Pausable {
 	    AdminRole(3)        //at least two administrators always in charge + the DEX contract
 	    public {
         	_feeAddress=_msgSender();
+        	_feeRate = 0;
 	    }
 
 	/**
@@ -38,7 +39,7 @@ contract UpStableToken is ERC20,ERC20Detailed,Pausable {
 	* @return fee amount
 	*/
 	function _calcFee(uint256 value) private view returns (uint256) {
-		uint256 fee = (value.mul(_basisPointsRate)).div(10000);
+		uint256 fee = (value.mul(_feeRate)).div(10000);
 
 		return fee;
 	}
@@ -95,9 +96,9 @@ contract UpStableToken is ERC20,ERC20Detailed,Pausable {
         // Ensure transparency by hardcoding limit beyond which fees can never be added
         require(newBasisPoints <= MAX_SETTABLE_BASIS_POINTS,"Fee cannot be set higher than MAX_SETTABLE_BASIS_POINTS");
 
-        _basisPointsRate = newBasisPoints;
+        _feeRate = newBasisPoints;
 
-        emit FeeChanged(_basisPointsRate);
+        emit FeeChanged(_feeRate);
     }
 
 	/**
@@ -107,7 +108,7 @@ contract UpStableToken is ERC20,ERC20Detailed,Pausable {
 	*/
     function getFee() public view returns (uint256){
         // Ensure transparency by hardcoding limit beyond which fees can never be added
-        return _basisPointsRate;
+        return _feeRate;
     }
 
 	/**
