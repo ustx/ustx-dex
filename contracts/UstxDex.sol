@@ -36,7 +36,7 @@ contract UstxDEX is ReentrancyGuard,Pausable {
 	uint256 private _minExp;			//minimum expansion in TH
 	uint256 private _maxDamp;			//maximum damping in TH
 	uint256 private _collectedFees;		//amount of collected fees
-	uint256 private _launchEnabled;		//launchpad mode if >1
+	uint256 private _launchEnabled;		//launchpad mode if >=1
 	uint256 private _launchTargetSize;	//number of tokens reserved for launchpad
 	uint256 private _launchPrice;		//Launchpad price
 	uint256 private _launchBought;		//number of tokens bought so far in Launchpad
