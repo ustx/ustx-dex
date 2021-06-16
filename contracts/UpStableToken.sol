@@ -12,14 +12,6 @@ import "./Pausable.sol";
 /// @author USTX Team
 /// @dev This contract implements the functionality of the USTX token.
 contract UpStableToken is ERC20,ERC20Detailed,Pausable {
-	//Variables
-    uint256 private constant MAX_SETTABLE_BASIS_POINTS = 100;
-    address private _feeAddress;        //fee destination address
-    uint256 private _feeRate;           //fee in basis points
-
-	//Events
-	event FeeChanged(uint256 feeBasisPoints);
-
 	/**
 	* @dev Constructor for UpStableToken, USTX, 6 decimals, 3 administrators
 	*
@@ -28,41 +20,16 @@ contract UpStableToken is ERC20,ERC20Detailed,Pausable {
 	constructor()
 	    ERC20Detailed("UpStableToken", "USTX", 6)
 	    AdminRole(3)        //at least two administrators always in charge + the DEX contract
-	    public {
-        	_feeAddress=_msgSender();
-        	_feeRate = 0;
-	    }
-
-	/**
-	* @dev Private function to calculate the fee (if applied)
-	* @param value transaction value
-	* @return fee amount
-	*/
-	function _calcFee(uint256 value) private view returns (uint256) {
-		uint256 fee = (value.mul(_feeRate)).div(10000);
-
-		return fee;
-	}
+	    public { }
 
 	/**
 	* @dev Public function to transfer token (when not paused)
 	* @param to destination address
 	* @param value transaction value
-	* @return true
+	* @return boolean
 	*/
 	function transfer(address to, uint256 value) public whenNotPaused returns (bool) {
-		uint256 fee = _calcFee(value);
-		if (isAdmin(_msgSender())){   //no fees if sender is admin (DEX included)
-			fee = 0;
-		}
-		uint256 sendAmount = value.sub(fee);
-
-		if (fee > 0) {
-			super.transfer(_feeAddress, fee);
-		}
-		super.transfer(to, sendAmount);
-
-		return true;
+		return super.transfer(to, sendAmount);
 	}
 
 	/**
@@ -70,55 +37,10 @@ contract UpStableToken is ERC20,ERC20Detailed,Pausable {
 	* @param from source address
 	* @param to destination address
 	* @param value transaction value
-	* @return true
+	* @return boolean
 	*/
 	function transferFrom(address from, address to, uint256 value) public whenNotPaused returns (bool) {
-		uint256 fee = _calcFee(value);
-		if (isAdmin(_msgSender())){   //no fees if sender is admin (DEX included)
-			fee = 0;
-		}
-		uint256 sendAmount = value.sub(fee);
-
-		if (fee > 0 ) {
-			super.transferFrom(from, _feeAddress, fee);
-		}
-		super.transferFrom(from, to, sendAmount);
-
-		return true;
-	}
-
-	/**
-	* @dev Public function to set fee percentage (only admin)
-	* @param newBasisPoints fee percentage in basis points
-	*
-	*/
-    function setFee(uint256 newBasisPoints) public onlyAdmin {
-        // Ensure transparency by hardcoding limit beyond which fees can never be added
-        require(newBasisPoints <= MAX_SETTABLE_BASIS_POINTS,"Fee cannot be set higher than MAX_SETTABLE_BASIS_POINTS");
-
-        _feeRate = newBasisPoints;
-
-        emit FeeChanged(_feeRate);
-    }
-
-	/**
-	* @dev Public function to get current fee level
-	* @return fee in basis points
-	*
-	*/
-    function getFee() public view returns (uint256){
-        // Ensure transparency by hardcoding limit beyond which fees can never be added
-        return _feeRate;
-    }
-
-	/**
-	* @dev Public function to set fee destination address (only admin)
-	* @param feeAddr fee destination account address
-	*
-	*/
-	function setFeeAddress(address feeAddr) public onlyAdmin {
-		require(feeAddr != address(0) && feeAddr != address(this));
-		_feeAddress = feeAddr;
+		return super.transferFrom(from, to, sendAmount);
 	}
 
 	/**
