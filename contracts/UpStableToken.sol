@@ -29,7 +29,7 @@ contract UpStableToken is ERC20,ERC20Detailed,Pausable {
 	* @return boolean
 	*/
 	function transfer(address to, uint256 value) public whenNotPaused returns (bool) {
-		return super.transfer(to, sendAmount);
+		return super.transfer(to, value);
 	}
 
 	/**
@@ -40,7 +40,7 @@ contract UpStableToken is ERC20,ERC20Detailed,Pausable {
 	* @return boolean
 	*/
 	function transferFrom(address from, address to, uint256 value) public whenNotPaused returns (bool) {
-		return super.transferFrom(from, to, sendAmount);
+		return super.transferFrom(from, to, value);
 	}
 
 	/**
