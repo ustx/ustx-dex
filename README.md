@@ -11,13 +11,13 @@
 * **Roles.sol**, same as OpenZeppelin v2.5.1
 * **SafeMath.sol**, same as OpenZeppelin v2.5.1
 * **UpStableToken.sol**, based on OpenZeppelin v2.5.1
-  * Deployed on Shasta testnet at address **TULFRD7gsdcjA4HAvT4FH4rgnfLi2To8iv
+  * Deployed on Shasta testnet at address **TULFRD7gsdcjA4HAvT4FH4rgnfLi2To8iv**
   * Mintable
   * Burnable
   * Pausable
   * Some functions are restricted to Admin role
 * **UstxDEX.sol**, implementation of the DEX functionality for the trade pair USTX/USDT
-  * Deployed on Shasta testnet ad address **TSY5FUgRZz2wJQ7uAjWS3Ga5VqhPzXc4dg
+  * Deployed on Shasta testnet ad address **TSY5FUgRZz2wJQ7uAjWS3Ga5VqhPzXc4dg**
   * Pausable
   * Trade functions are reentrancy protected
   * USDT Liquidity is locked in. Owners cannot withdraw it
