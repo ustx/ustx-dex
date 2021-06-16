@@ -9,8 +9,6 @@
 * **Pausable.sol**, same as OpenZeppelin v2.5.1
 * **ReentrancyGuard.sol**, same as OpenZeppelin v2.5.1
 * **Roles.sol**, same as OpenZeppelin v2.5.1
-* **SafeERC20.sol**, based on OpenZeppelin v2.5.1
-  * Modified to handle correctly USDT(TRC20) contract
 * **SafeMath.sol**, same as OpenZeppelin v2.5.1
 * **UpStableToken.sol**, based on OpenZeppelin v2.5.1
   * Mintable
@@ -24,7 +22,7 @@
   * USDT Liquidity is locked in. Owners cannot withdraw it
   * Flexible fee structure is provided, with separate buy and sell fees, hardcapped at 2.5%
   * Some functions are restricted to Admin role
-  * Uses SafeMath and SafeERC20
+  * Uses SafeMath
   * Implements launchpad functions, to sell a predetermined amount of tokens at a fixed price
   * Main trade functions are
     * buyTokenInput, to buy USTX tokens with an exact amount of USDT
