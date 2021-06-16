@@ -14,13 +14,12 @@
   * Mintable
   * Burnable
   * Pausable
-  * Possibility to implement transaction fees (hardcapped at 1%)
   * Some functions are restricted to Admin role
 * **UstxDEX.sol**, implementation of the DEX functionality for the trade pair USTX/USDT
   * Pausable
   * Trade functions are reentrancy protected
   * USDT Liquidity is locked in. Owners cannot withdraw it
-  * Flexible fee structure is provided, with separate buy and sell fees, hardcapped at 2.5%
+  * Flexible fee structure is provided, with separate buy and sell fees, hardcapped at 2%
   * Some functions are restricted to Admin role
   * Uses SafeMath
   * Implements launchpad functions, to sell a predetermined amount of tokens at a fixed price
