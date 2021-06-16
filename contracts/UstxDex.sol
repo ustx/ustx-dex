@@ -22,7 +22,7 @@ contract UstxDEX is ReentrancyGuard,Pausable {
 	|__________________________________*/
 
 	//Constants
-	uint256 private constant MAX_FEE = 250;   //maximum fee in BP (2.5%)
+	uint256 private constant MAX_FEE = 200;   //maximum fee in BP (2.5%)
 	uint256 private constant MAX_LAUNCH_FEE = 1000;  //maximum fee during launchpad (10%)
 
 	//Variables
