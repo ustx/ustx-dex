@@ -1,4 +1,4 @@
-# USTX contracts (V2)
+# USTX contracts (V2, same as V1)
 
 * **AdminRole.sol**, based on OpenZeppelin v2.5.1
   * Modified to implement Admin role
@@ -11,7 +11,7 @@
 * **Roles.sol**, same as OpenZeppelin v2.5.1
 * **SafeMath.sol**, same as OpenZeppelin v2.5.1
 * **UpStableToken.sol**, based on OpenZeppelin v2.5.1
-  * Deployed on Shasta testnet at address **TULFRD7gsdcjA4HAvT4FH4rgnfLi2To8iv**
+  * Deployed on Nile testnet at address **TXsXkE14DjroBKEgH54T7YAftZ25puaBtn**
   * Mintable
   * Burnable
   * Pausable
