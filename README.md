@@ -4,4 +4,4 @@
 * V2 folder contains V2 contracts tested on NILE
 	* ustx token (same as V1)
 	* dex-proxy (proxy contract to enable upgradeability)
-	* dex-impl (implementation contracts)
+	* dex-impl (DEX implementation contracts)
