@@ -1,7 +1,6 @@
 # USTX DEX Implementation contracts (V2)
 
 * **UstxDEX.sol**, implementation of the DEX functionality with multiasset reserve
-  * Deployed on Nile testnet ad address **TFRpEk8ccVt7Rhov7x6x7sRzwramx5iFW6**
   * Updated to support Solidity v0.8.0
   * Pausable
   * Trade functions are reentrancy protected
@@ -18,6 +17,4 @@
     * buyTokenLaunchTransferInput, to buy USTX during launchpad and transfer them to a recipient
     * buyTokenInputPreview, to preview amount of USTX in exchange for an exact amount of USDT (or USDC, USDJ, TUSD)
     * sellTokenInputPreview, to preview amount of USDT (or USDC, USDJ, TUSD) in exchange for an exact amount of USTX
-* **UstxDEXv2.sol**, updated implementation
-	* allow individual reserve tokens to be enabled for trading
-	* Deployed on Nile testnet ad address **TBNRXRjwXz89BaN8R6x4jg1kBgtbjwsiV4**
+	* swapReserveTokens, to swap one reserve token for another 1:1 (onlyAdmin)
