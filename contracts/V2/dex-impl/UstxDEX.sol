@@ -1,4 +1,4 @@
-// UstxDex.sol
+// UstxDEXv2.sol
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
@@ -11,7 +11,7 @@ import "./SafeERC20.sol";
 
 /// @title Up Stable Token eXperiment DEX
 /// @author USTX Team
-/// @dev This contract implements the DEX functionality for the USTX token.
+/// @dev This contract implements the DEX functionality for the USTX token (v2).
 contract UstxDEX is Initializable {
 	using Roles for Roles.Role;
 	//SafeERC20 not needed for USDT(TRC20) and USTX(TRC20)
@@ -51,6 +51,7 @@ contract UstxDEX is Initializable {
 	uint256 private _version;			//contract version
 
 	uint256[5] _rtEnable;       //reserve token enable
+	uint256[5] _rtTradeEnable;       //reserve token enable for trading
 	uint256[5] _rtValue;     //reserve token value in TH (0-1000)
 	uint256[5] _rtShift;       //reserve token decimal shift
     IERC20[5] _rt;    //reserve token address (element 0 is USDT)
@@ -70,7 +71,7 @@ contract UstxDEX is Initializable {
 	* @dev initialize function
 	*
 	*/
-	function initialize() public initializer {
+	function initialize() public initializer onlyAdmin {
 		_launchTeamAddr = _msgSender();
 		_decimals = 6;
 		_feeBuy = 0;                    //0%
@@ -89,12 +90,21 @@ contract UstxDEX is Initializable {
 		_addAdmin(_msgSender());		//default admin
 		_minAdmins = 2;					//at least 2 admins in charge
 		_version = 1;
+
+		uint256 j;						//initialize reserve variables
+		for (j=0; j<5; j++) {
+			_rtEnable[j]=0;
+			_rtTradeEnable[j]=0;
+		}
 	}
 
-	//function upgradeToV2() public {
+	/**
+	* @dev upgrade function for V2
+	*/
+	//function upgradeToV2() public onlyAdmin {
     //    require(_version<2,"Contract already up to date");
     //    _version=2;
-    //    DO THINGS
+	//		DO THINGS
     //}
 
 	/***********************************|
@@ -256,7 +266,7 @@ contract UstxDEX is Initializable {
 		require(_launchBought<_launchTargetSize,"Launchpad target reached!");
 		require(rSell<=_launchMaxLot,"Order too big for Launchpad");
 		require(tIndex<5, "INVALID_INDEX");
-		require(_rtEnable[tIndex]>0,"Token disabled");
+		require(_rtEnable[tIndex]>0 && _rtTradeEnable[tIndex]>0,"Token disabled");
 		return _buyLaunchpadInput(rSell, tIndex, minTokens, _msgSender(), _msgSender());
 	}
 
@@ -273,7 +283,7 @@ contract UstxDEX is Initializable {
 		require(_launchBought<_launchTargetSize,"Launchpad target reached!");
 		require(rSell<=_launchMaxLot,"Order too big for Launchpad");
 		require(tIndex<5, "INVALID_INDEX");
-		require(_rtEnable[tIndex]>0,"Token disabled");
+		require(_rtEnable[tIndex]>0 && _rtTradeEnable[tIndex]>0,"Token disabled");
 		return _buyLaunchpadInput(rSell, tIndex, minTokens, _msgSender(), recipient);
 	}
 
@@ -287,7 +297,7 @@ contract UstxDEX is Initializable {
 	function  buyTokenInput(uint256 rSell, uint256 tIndex, uint256 minTokens)  public whenNotPaused returns (uint256)  {
 		require(_launchEnabled==0,"Function not allowed during launchpad");
 		require(tIndex<5, "INVALID_INDEX");
-		require(_rtEnable[tIndex]>0,"Token disabled");
+		require(_rtEnable[tIndex]>0 && _rtTradeEnable[tIndex]>0,"Token disabled");
 		return _buyStableInput(rSell, tIndex, minTokens, _msgSender(), _msgSender());
 	}
 
@@ -303,7 +313,7 @@ contract UstxDEX is Initializable {
 		require(_launchEnabled==0,"Function not allowed during launchpad");
 		require(recipient != address(this) && recipient != address(0),"Recipient cannot be DEX or address 0");
 		require(tIndex<5, "INVALID_INDEX");
-		require(_rtEnable[tIndex]>0,"Token disabled");
+		require(_rtEnable[tIndex]>0 && _rtTradeEnable[tIndex]>0,"Token disabled");
 		return _buyStableInput(rSell, tIndex, minTokens, _msgSender(), recipient);
 	}
 
@@ -316,7 +326,7 @@ contract UstxDEX is Initializable {
 	function sellTokenInput(uint256 tokensSold, uint256 tIndex, uint256 minUsdts) public whenNotPaused returns (uint256) {
 		require(_launchEnabled==0,"Function not allowed during launchpad");
 		require(tIndex<5, "INVALID_INDEX");
-		require(_rtEnable[tIndex]>0,"Token disabled");
+		require(_rtEnable[tIndex]>0 && _rtTradeEnable[tIndex]>0,"Token disabled");
 		return _sellStableInput(tokensSold, tIndex, minUsdts, _msgSender(), _msgSender());
 	}
 
@@ -331,14 +341,14 @@ contract UstxDEX is Initializable {
 		require(_launchEnabled==0,"Function not allowed during launchpad");
 		require(recipient != address(this) && recipient != address(0),"Recipient cannot be DEX or address 0");
 		require(tIndex<5, "INVALID_INDEX");
-		require(_rtEnable[tIndex]>0,"Token disabled");
+		require(_rtEnable[tIndex]>0 && _rtTradeEnable[tIndex]>0,"Token disabled");
 		return _sellStableInput(tokensSold, tIndex, minUsdts, _msgSender(), recipient);
 	}
 
 	/**
-	* @dev public function to setup the reserve after launchpad
+	* @dev public function to setup the reserve after launchpad (onlyAdmin, whenPaused)
 	* @param startPrice target price
-	* @return reserve value
+	* @return new reserve value
 	*/
 	function setupReserve(uint256 startPrice) public onlyAdmin whenPaused returns (uint256) {
 		require(startPrice>0,"Price cannot be 0");
@@ -357,15 +367,31 @@ contract UstxDEX is Initializable {
 		return newReserve;
 	}
 
+	/**
+	* @dev public function to swap 1:1 between reserve tokens (onlyAdmin)
+	* @param amount, amount to swap (6 decimal places)
+	* @param tIndexIn, index of token to sell
+	* @param tIndexOut, index of token to buy
+	* @return amount swapped
+	*/
     function swapReserveTokens(uint256 amount, uint256 tIndexIn, uint256 tIndexOut) public onlyAdmin returns (uint256) {
         require(amount > 0,"Amount should be higher than 0");
         require(tIndexIn <5 && tIndexOut <5 && tIndexIn != tIndexOut,"Index out of bounds or equal");
+		require(_rtEnable[tIndexIn]>0 && _rtEnable[tIndexOut]>0,"Tokens disabled");
 
         _swapReserveTokens(amount, tIndexIn, tIndexOut, _msgSender());
 
         return amount;
     }
 
+	/**
+	* @dev private function to swap 1:1 between reserve tokens (nonReentrant)
+	* @param amount, amount to swap (6 decimal places)
+	* @param tIndexIn, index of token to sell
+	* @param tIndexOut, index of token to buy
+	* @param buyer, recipient
+	* @return amount swapped
+	*/
     function _swapReserveTokens(uint256 amount, uint256 tIndexIn, uint256 tIndexOut, address buyer) private nonReentrant returns (uint256) {
  		if (tIndexIn==0) {
     		_rt[tIndexIn].transferFrom(buyer, address(this), amount*(10**_rtShift[tIndexIn]));
@@ -640,7 +666,7 @@ contract UstxDEX is Initializable {
 	/**
 	* @dev Function to set reserve token address (only admin)
 	* @param reserveAddress address of the reserve token contract
-	* @param index toke index in array 0-4
+	* @param index token index in array 0-4
 	* @param decimals number of decimals
 	*/
 	function setReserveTokenAddr(uint256 index, address reserveAddress, uint256 decimals) public onlyAdmin {
@@ -650,13 +676,14 @@ contract UstxDEX is Initializable {
 		_rt[index] = IERC20(reserveAddress);
 		_rtShift[index] = decimals-_decimals;
 		_rtEnable[index] = 0;
+		_rtTradeEnable[index] = 0;
 		_rtValue[index] = 1000;
 	}
 
 	/**
 	* @dev Function to enable reserve token (only admin)
-	* @param index toke index in array 0-4
-	* @param enable boolean
+	* @param index token index in array 0-4
+	* @param enable 0-1
 	*/
 	function setReserveTokenEnable(uint256 index, uint256 enable) public onlyAdmin {
 		require(index<5, "INVALID_INDEX");
@@ -664,9 +691,19 @@ contract UstxDEX is Initializable {
 	}
 
 	/**
-	* @dev Function to enable reserve token (only admin)
-	* @param index toke index in array 0-4
-	* @param value in TH
+	* @dev Function to enable reserve token trading (only admin)
+	* @param index token index in array 0-4
+	* @param enable 0-1
+	*/
+	function setReserveTokenTradeEnable(uint256 index, uint256 enable) public onlyAdmin {
+		require(index<5, "INVALID_INDEX");
+		_rtTradeEnable[index] = enable;
+	}
+
+	/**
+	* @dev Function to set reserve token value, relative to 1USD (only admin)
+	* @param index token index in array 0-4
+	* @param value in TH (0-1000)
 	*/
 	function setReserveTokenValue(uint256 index, uint256 value) public onlyAdmin {
 		require(index<5, "INVALID_INDEX");
@@ -796,18 +833,17 @@ contract UstxDEX is Initializable {
 
 	/**
 	* @dev Function to get the address of the reserve token contract
-	* @return Address of USDT
-	*
+	* @param index token index in array 0-4
+	* @return Address of token, relative decimal shift, enable, gradeenable, value, balance
 	*/
-	function getReserveData(uint256 index) public view returns (address, uint256, uint256, uint256, uint256) {
+	function getReserveData(uint256 index) public view returns (address, uint256, uint256, uint256, uint256, uint256) {
 		uint256 bal=_rt[index].balanceOf(address(this));
-		return (address(_rt[index]), _rtShift[index], _rtEnable[index], _rtValue[index], bal);
+		return (address(_rt[index]), _rtShift[index], _rtEnable[index], _rtTradeEnable[index], _rtValue[index], bal);
 	}
 
 	/**
-	* @dev Function to get reserve balance
-	* @return reserve
-	*
+	* @dev Function to get total reserve balance
+	* @return reserve balance
 	*/
 	function getReserveBalance() public view returns (uint256) {
 		uint256 j=0;
@@ -827,7 +863,7 @@ contract UstxDEX is Initializable {
 
 	/**
 	* @dev Function to get current reserves balance
-	* @return USDT reserve, USTX reserve, USTX circulating
+	* @return USD reserve, USTX reserve, USTX circulating, collected fees
 	*/
 	function getBalances() public view returns (uint256,uint256,uint256,uint256) {
 		uint256 tokenBalance = _token.balanceOf(address(this));
@@ -837,7 +873,7 @@ contract UstxDEX is Initializable {
 	}
 
 	/**
-	* @dev Function to get current reserves balance
+	* @dev Function to get every reserve token balance
 	* @return b0, b1, b2, b3, b4 balances
 	*/
 	function getEveryReserveBalance() public view returns (uint256,uint256,uint256,uint256,uint256) {
@@ -847,6 +883,7 @@ contract UstxDEX is Initializable {
 		for (j=0; j<5; j++) {
 		    if (_rtEnable[j]>0) {
 		        b[j] = _rt[j].balanceOf(address(this));
+				b[j] = b[j] / (10**_rtShift[j]);
 		    }
         }
 		return (b[0], b[1], b[2], b[3], b[4]);
@@ -897,4 +934,5 @@ contract UstxDEX is Initializable {
 		require(team != address(0) && team != address(this), "Invalid team address");
 		_launchTeamAddr = team;
 	}
+
 }
