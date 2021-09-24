@@ -1,5 +1,6 @@
 // UstxDEXv2.sol
 // SPDX-License-Identifier: MIT
+// solhint-disable-next-line
 pragma solidity ^0.8.0;
 
 import "./IUSTX.sol";
@@ -12,6 +13,7 @@ import "./SafeERC20.sol";
 /// @title Up Stable Token eXperiment DEX
 /// @author USTX Team
 /// @dev This contract implements the DEX functionality for the USTX token (v2).
+// solhint-disable-next-line
 contract UstxDEX is Initializable {
 	using Roles for Roles.Role;
 	//SafeERC20 not needed for USDT(TRC20) and USTX(TRC20)
@@ -50,13 +52,13 @@ contract UstxDEX is Initializable {
 	uint256 private _minAdmins;
 	uint256 private _version;			//contract version
 
-	uint256[5] _rtEnable;       //reserve token enable
-	uint256[5] _rtTradeEnable;       //reserve token enable for trading
-	uint256[5] _rtValue;     //reserve token value in TH (0-1000)
-	uint256[5] _rtShift;       //reserve token decimal shift
-    IERC20[5] _rt;    //reserve token address (element 0 is USDT)
+	uint256[5] private _rtEnable;       //reserve token enable
+	uint256[5] private _rtTradeEnable;       //reserve token enable for trading
+	uint256[5] private _rtValue;     //reserve token value in TH (0-1000)
+	uint256[5] private _rtShift;       //reserve token decimal shift
+    IERC20[5] private _rt;    //reserve token address (element 0 is USDT)
 
-	IUSTX _token;	// address of USTX token
+	IUSTX private _token;	// address of USTX token
 
 	// Events
 	event TokenBuy(address indexed buyer, uint256 indexed usdtSold, uint256 indexed tokensBought, uint256 price, uint256 tIndex);
