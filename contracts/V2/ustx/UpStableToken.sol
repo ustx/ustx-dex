@@ -1,5 +1,6 @@
 // UpStableToken.sol
 // SPDX-License-Identifier: MIT
+// solhint-disable-next-line
 pragma solidity ^0.5.0;
 
 import "./ERC20.sol";
@@ -18,9 +19,10 @@ contract UpStableToken is ERC20,ERC20Detailed,Pausable {
 	*
 	*/
 	constructor()
+		public
 	    ERC20Detailed("UpStableToken", "USTX", 6)
 	    AdminRole(3)        //at least two administrators always in charge + the DEX contract
-	    public { }
+		{ }
 
 	/**
 	* @dev Public function to transfer token (when not paused)

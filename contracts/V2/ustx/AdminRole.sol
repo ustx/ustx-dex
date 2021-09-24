@@ -1,6 +1,7 @@
 // AdminRole.sol
 // Based on OpenZeppelin contracts v2.5.1
 // SPDX-License-Identifier: MIT
+// solhint-disable-next-line
 pragma solidity ^0.5.0;
 
 import "./Context.sol";
@@ -17,7 +18,6 @@ contract AdminRole is Context {
     uint256 private _minAdmins;
 
     constructor (uint256 minAdmins) internal {
-        _numAdmins=0;
         _addAdmin(_msgSender());
         _minAdmins = minAdmins;
     }

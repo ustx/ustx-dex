@@ -1,6 +1,7 @@
 // IERC20.sol
 // Based on OpenZeppelin contracts v2.5.1
 // SPDX-License-Identifier: MIT
+// solhint-disable-next-line
 pragma solidity ^0.5.0;
 
 /**
