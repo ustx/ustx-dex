@@ -1,5 +1,5 @@
 pragma solidity ^0.8.0;
-
+// solhint-disable-next-line
 // SPDX-License-Identifier: MIT
 
 import "./TransparentUpgradeableProxy.sol";
