@@ -73,7 +73,7 @@ contract UstxDEX is Initializable {
 	* @dev initialize function
 	*
 	*/
-	function initialize() public initializer onlyAdmin {
+	function initialize() public initializer {
 		_launchTeamAddr = _msgSender();
 		_decimals = 6;
 		_feeBuy = 0;                    //0%
