@@ -11,7 +11,7 @@
 * **Roles.sol**, same as OpenZeppelin v2.5.1
 * **SafeMath.sol**, same as OpenZeppelin v2.5.1
 * **UpStableToken.sol**, based on OpenZeppelin v2.5.1
-  * Deployed on Nile testnet at address **TXsXkE14DjroBKEgH54T7YAftZ25puaBtn**
+  * Deployed on mainnet at address **TYX2iy3i3793YgKU5vqKxDnLpiBMSa5EdV**
   * Mintable
   * Burnable
   * Pausable

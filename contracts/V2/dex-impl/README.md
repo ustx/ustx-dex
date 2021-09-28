@@ -1,6 +1,7 @@
 # USTX DEX Implementation contracts (V2)
 
 * **UstxDEX.sol**, implementation of the DEX functionality with multiasset reserve
+  * Deployed on mainnet at address **TT7EHYyThW1G1WBndya7RQpNSXFHyzeHfx**
   * Updated to support Solidity v0.8.0
   * Pausable
   * Trade functions are reentrancy protected
