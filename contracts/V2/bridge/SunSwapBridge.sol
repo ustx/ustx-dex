@@ -11,11 +11,10 @@ import "./IUstxDEX.sol";
 
 /// @title Up Stable Token eXperiment SunSwap bridge
 /// @author USTX Team
-/// @dev This contract implements the DEX functionality for the USTX token (v2).
+/// @dev This contract implements the interswap (USTX DEX <-> SunSwap) functionality for the USTX token.
 // solhint-disable-next-line
 contract SunSwapBridge {
 	using Roles for Roles.Role;
-	//SafeERC20 not needed for USDT(TRC20) and USTX(TRC20)
 
 	/***********************************|
 	|        Variables && Events        |
@@ -38,9 +37,8 @@ contract SunSwapBridge {
 	IERC20 private _token;	// address of USTX token
 
 	// Events
-	event TokenBuy(address indexed buyer, uint256 indexed usdtSold, uint256 indexed tokensBought, uint256 price, uint256 tIndex);
-	event TokenSell(address indexed buyer, uint256 indexed tokensSold, uint256 indexed usdtBought, uint256 price, uint256 tIndex);
-	event Snapshot(address indexed operator, uint256 indexed reserveBalance, uint256 indexed tokenBalance);
+	event TokenBuy(address indexed buyer, uint256 indexed trxSold, uint256 indexed tokensBought, uint256 tIndex);
+	event TokenSell(address indexed buyer, uint256 indexed tokensSold, uint256 indexed trxBought, uint256 tIndex);
 	event AdminAdded(address indexed account);
     event AdminRemoved(address indexed account);
 
@@ -158,7 +156,7 @@ contract SunSwapBridge {
 	}
 
 	/**
-	* @dev Public function to buy tokens and transfer them to recipient
+	* @dev Public function to buy tokens with TRX
 	* @param minTokens minimum amount of tokens to buy
 	* @param tIndex index of the reserve token to swap
 	* @return number of tokens bought
@@ -178,14 +176,70 @@ contract SunSwapBridge {
 	* @return number of tokens bought
 	*/
 	function _trxToTokenTransferInput(uint256 trxSell, uint256 tIndex, uint256 minTokens, address recipient) private nonReentrant returns(uint256) {
+		uint256 sc;
+		uint256 tokensBought;
 
-		_scTrxPool[tIndex].trxToTokenSwapInput{value: trxSell}(1, block.timestamp+10);
+		sc = _scTrxPool[tIndex].trxToTokenSwapInput{value: trxSell}(1, block.timestamp+10);
 
-		uint256 sc = _rt[tIndex].balanceOf(address(this));
 		sc = sc / (10**_rtShift[tIndex]);
 
-		return _ustxDex.buyTokenTransferInput(sc, tIndex, minTokens, recipient);
+		tokensBought = _ustxDex.buyTokenTransferInput(sc, tIndex, minTokens, recipient);
 
+		emit TokenBuy(recipient, trxSell, tokensBought, tIndex);
+
+		return tokensBought;
+	}
+
+	/**
+	* @dev Public function to sell tokens and get TRX
+	* @param minTrx minimum amount of TRX to get
+	* @param tIndex index of the reserve token to swap
+	* @return number of tokens bought
+	*/
+	function tokenToTrxInput(uint256 tokenSell, uint256 tIndex, uint256 minTrx) public returns(uint256) {
+		require(tIndex<5, "INVALID_INDEX");
+
+		return _tokenToTrxTransferInput(_msgSender(), tokenSell, tIndex, minTrx, _msgSender());
+	}
+
+	/**
+	* @dev Public function to sell tokens and transfer TRX to recipient
+	* @param minTrx minimum amount of TRX to get
+	* @param tIndex index of the reserve token to swap
+	* @param recipient recipient of the transaction
+	* @return number of TRX bought
+	*/
+	function tokenToTrxTransferInput(uint256 tokenSell, uint256 tIndex, uint256 minTrx, address recipient) public returns(uint256) {
+		require(recipient != address(this) && recipient != address(0),"Recipient cannot be this or address 0");
+		require(tIndex<5, "INVALID_INDEX");
+
+		return _tokenToTrxTransferInput(_msgSender(), tokenSell, tIndex, minTrx, recipient);
+	}
+
+	/**
+	* @dev Private function to sell tokens and transfer TRX to recipient
+	* @param buyer address of buyer
+	* @param tokenSell amount of tokens to sell
+	* @param minTrx minimum amount of TRX to buy
+	* @param tIndex index of the reserve token to swap
+	* @param recipient recipient of the transaction
+	* @return number of TRX bought
+	*/
+	function _tokenToTrxTransferInput(address buyer, uint256 tokenSell, uint256 tIndex, uint256 minTrx, address recipient) private nonReentrant returns(uint256) {
+		uint256 sc;
+		uint256 trxBought;
+
+		_token.transferFrom(buyer,address(this),tokenSell);
+
+		sc = _ustxDex.sellTokenInput(tokenSell, tIndex, 1);
+
+		sc = sc * (10**_rtShift[tIndex]);
+
+		trxBought = _scTrxPool[tIndex].tokenToTrxTransferInput(sc,minTrx, block.timestamp+10, recipient);
+
+		emit TokenSell(recipient, tokenSell, trxBought, tIndex);
+
+		return trxBought;
 	}
 
 	/**
@@ -218,20 +272,39 @@ contract SunSwapBridge {
 	* @dev Function to set Token address (only admin)
 	* @param dexAddress address of the USTX DEX contract
 	*/
-	function setUstxSwapAddr(address dexAddress) public onlyAdmin {
+	function setTokenSwapAddr(address dexAddress) public onlyAdmin {
 	    require(dexAddress != address(0), "INVALID_ADDRESS");
 		_ustxDex = IUstxDEX(dexAddress);
 	}
 
 	/**
-	* @dev Function to approve stablecoin spending (only admin)
-	* @param tIndex token index
-	* @param amount with 6 decimals reference
+	* @dev Function to approve token spending (only admin)
+	* @param tokenAddr token address
+	* @param destAddr recipient approval address
+	* @param amount with token decimals
 	*/
-	function setScApproval(uint256 tIndex, uint256 amount) public onlyAdmin {
-	    require(tIndex < 5, "INVALID_INDEX");
+	function setApproval(address tokenAddr, address destAddr, uint256 amount) public onlyAdmin {
+	    require(tokenAddr != address(0), "INVALID_ADDRESS");
+		require(destAddr != address(0), "INVALID_ADDRESS");
 		require(amount > 0, "AMOUNT MUST BE > 0");
-	    _rt[tIndex].approve(address(_ustxDex), amount * (10**_rtShift[tIndex]));
+
+		IERC20 token = IERC20(tokenAddr);
+
+	    token.approve(destAddr, amount);
+	}
+
+	/**
+	* @dev Function to check token allowance (only admin)
+	* @param tokenAddr token address
+	* @param destAddr recipient approval address
+	*/
+	function checkAllowance(address tokenAddr, address destAddr) public view returns(uint256){
+	    require(tokenAddr != address(0), "INVALID_ADDRESS");
+		require(destAddr != address(0), "INVALID_ADDRESS");
+
+		IERC20 token = IERC20(tokenAddr);
+
+	    return token.allowance(address(this),destAddr);
 	}
 
 	/**
