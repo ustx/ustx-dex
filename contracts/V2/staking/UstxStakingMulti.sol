@@ -485,6 +485,7 @@ contract UstxStaking {
         }
     }
     */
+		
     /* ========== UNSTAKE FUNCTIONS ========== */
     function unstakeFree(uint256 amount) public nonReentrant updateRewardFree(msg.sender) {
         require(amount > 0, "Cannot withdraw 0");
