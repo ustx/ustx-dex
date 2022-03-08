@@ -12,7 +12,7 @@ import "./Roles.sol";
 /// @author USTX Team
 /// @dev This contract implements the interswap (USTX DEX <-> SunSwap) functionality for the USTX token.
 // solhint-disable-next-line
-contract UstxStaking {
+contract UstxVoting {
 	using Roles for Roles.Role;
 
 	/***********************************|
@@ -219,7 +219,7 @@ contract UstxStaking {
     * returns votes cast so far
 	*/
     function getVoteResult(uint256 propID) public view returns (uint256, uint256, uint256, uint256, uint256) {
-        if (_propInfo[propID].endTime>block.timestamp || (_showResultsDuring>0 && _propInfo[propID].hasVoted[msg.sender]>0)) {
+        if (block.timestamp>_propInfo[propID].endTime || (_showResultsDuring>0 && _propInfo[propID].hasVoted[msg.sender]>0)) {
             return (_propInfo[propID].castVotes[0],
                 _propInfo[propID].castVotes[1],
                 _propInfo[propID].castVotes[2],
@@ -234,7 +234,7 @@ contract UstxStaking {
     function voteSimple(uint256 propID, uint256 yesVotes, uint256 noVotes) public nonReentrant {
         require(_propInfo[propID].propType==1,"WRONG PROPOSITION TYPE");
         require((yesVotes==0 && noVotes !=0) || (yesVotes!=0 && noVotes ==0),"INVALID VOTE");
-        require(_propInfo[propID].startTime>block.timestamp && _propInfo[propID].endTime<block.timestamp, "VOTING IS CLOSED");
+        require(block.timestamp>_propInfo[propID].startTime && block.timestamp<_propInfo[propID].endTime, "VOTING IS CLOSED");
         require(yesVotes+noVotes <= userVotes(msg.sender),"VOTES EXCEED BALANCE");
         require(_propInfo[propID].hasVoted[msg.sender]==0,"USER HAS ALREADY VOTED");
 
@@ -250,7 +250,7 @@ contract UstxStaking {
     function voteSimpleTeam(uint256 propID, uint256 yesVotes, uint256 noVotes) public onlyAdmin nonReentrant {
         require(_propInfo[propID].propType==1,"WRONG PROPOSITION TYPE");
         require((yesVotes==0 && noVotes !=0) || (yesVotes!=0 && noVotes ==0),"INVALID VOTE");
-        require(_propInfo[propID].startTime>block.timestamp && _propInfo[propID].endTime<block.timestamp, "VOTING IS CLOSED");
+        require(block.timestamp>_propInfo[propID].startTime && block.timestamp<_propInfo[propID].endTime, "VOTING IS CLOSED");
         require(yesVotes+noVotes <= _propInfo[propID].teamVotes,"VOTES EXCEED BALANCE");
         require(_propInfo[propID].teamVoted==0,"USER HAS ALREADY VOTED");
 
@@ -266,7 +266,7 @@ contract UstxStaking {
     function voteMulti(uint256 propID, uint256 opt0, uint256 opt1, uint256 opt2, uint256 opt3, uint256 opt4) public nonReentrant {
         require(_propInfo[propID].propType>1,"WRONG PROPOSITION TYPE");
         require(opt0>0 || opt1>0 || opt2>0 || opt3>0 || opt4>0,"INVALID VOTE");
-        require(_propInfo[propID].startTime>block.timestamp && _propInfo[propID].endTime<block.timestamp, "VOTING IS CLOSED");
+        require(block.timestamp>_propInfo[propID].startTime && block.timestamp<_propInfo[propID].endTime, "VOTING IS CLOSED");
         require(opt0+opt1+opt2+opt3+opt4 <= userVotes(msg.sender),"VOTES EXCEED BALANCE");
         require(_propInfo[propID].hasVoted[msg.sender]==0,"USER HAS ALREADY VOTED");
 
@@ -285,7 +285,7 @@ contract UstxStaking {
     function voteMultiTeam(uint256 propID, uint256 opt0, uint256 opt1, uint256 opt2, uint256 opt3, uint256 opt4) public onlyAdmin nonReentrant {
         require(_propInfo[propID].propType>1,"WRONG PROPOSITION TYPE");
         require(opt0>0 || opt1>0 || opt2>0 || opt3>0 || opt4>0,"INVALID VOTE");
-        require(_propInfo[propID].startTime>block.timestamp && _propInfo[propID].endTime<block.timestamp, "VOTING IS CLOSED");
+        require(block.timestamp>_propInfo[propID].startTime && block.timestamp<_propInfo[propID].endTime, "VOTING IS CLOSED");
         require(opt0+opt1+opt2+opt3+opt4 <= _propInfo[propID].teamVotes,"VOTES EXCEED BALANCE");
         require(_propInfo[propID].teamVoted==0,"USER HAS ALREADY VOTED");
 
@@ -304,7 +304,7 @@ contract UstxStaking {
 
     function newProposition(uint8 propType, uint256 start, uint256 end, uint256 qPerc) public onlyAdmin {
         require(propType<6,"WRONG PROPOSITION TYPE");
-        require(start>block.timestamp && end>block.timestamp,"CHECK START AND END TIMES");
+        require(start>block.timestamp && end>block.timestamp && end>start,"CHECK START AND END TIMES");
 
         uint256 total = totalVotes();
         uint256 team = total*teamShare/100;
@@ -325,7 +325,7 @@ contract UstxStaking {
 
     function editProposition(uint256 propID, uint8 propType, uint256 start, uint256 end, uint256 qPerc) public onlyAdmin {
         require(propType<6,"WRONG PROPOSITION TYPE");
-        require(start>block.timestamp && end>block.timestamp,"CHECK START AND END TIMES");
+        require(start>block.timestamp && end>block.timestamp && end>start,"CHECK START AND END TIMES");
         require(propID<propIndex,"PROPOSITION DOES NOT EXIST");
 
         PropInfo storage info = _propInfo[propID];
