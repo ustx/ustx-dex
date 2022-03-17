@@ -1,6 +1,5 @@
 // Staking.sol
 // SPDX-License-Identifier: MIT
-// solhint-disable-next-line
 pragma solidity ^0.8.0;
 
 import "./IStaking.sol";
@@ -8,10 +7,9 @@ import "./IERC20.sol";
 import "./Roles.sol";
 
 
-/// @title Up Stable Token eXperiment Staking contract
+/// @title Up Stable Token eXperiment Voting contract
 /// @author USTX Team
-/// @dev This contract implements the interswap (USTX DEX <-> SunSwap) functionality for the USTX token.
-// solhint-disable-next-line
+/// @dev This contract implements the voting platform
 contract UstxVoting {
 	using Roles for Roles.Role;
 
@@ -65,8 +63,8 @@ contract UstxVoting {
 		_minAdmins = 2;					//at least 2 admins in charge
         propIndex = 0;
         teamShare = 20;                 //20% of total available votes are team
-        _voteLot=1000000000;                  //amount of USTX per vote
-        _showResultsDuring=1;           //if 1 it allows seing the voting results during voting
+        _voteLot=1000000000;                  //1 vote every 1000 USTX
+        _showResultsDuring=1;           //if 1 it allows seeing the voting results during voting
     }
 
 
@@ -131,6 +129,9 @@ contract UstxVoting {
 
     /* ========== VIEWS ========== */
 
+	/**
+	* @dev total votes available, non including team votes
+	*/
     function totalVotes() public view returns (uint256) {
         uint256 S0;
         uint256 S1;
@@ -140,9 +141,19 @@ contract UstxVoting {
 
         (S0, S1, S2, S3, S4) = stakingContract.totalStaked();
 
-        return (S0+S1+S2+S3+S4)/_voteLot;
+        return (S0+S1+S2+S3+S4)/_voteLot;           //team votes are not considered
     }
 
+	/**
+	* @dev total votes available, including team votes
+	*/
+	function teamVotes() public view returns (uint256) {
+        return totalVotes()*teamShare/100;
+    }
+
+	/**
+	* @dev user votes available
+	*/
     function userVotes(address user) public view returns (uint256) {
         uint256 S0;
         uint256 S1;
@@ -155,10 +166,16 @@ contract UstxVoting {
         return (S0+S1+S2+S3+S4)/_voteLot;
     }
 
+	/**
+	* @dev returns >0 if user has voted
+	*/
     function userVoted(uint256 propID) public view returns (uint256){
         return(_propInfo[propID].hasVoted[msg.sender]);
     }
 
+	/**
+	* @dev connected user votes available
+	*/
     function myVotes() public view returns (uint256) {
         return userVotes(msg.sender);
     }
@@ -166,7 +183,7 @@ contract UstxVoting {
    /**
 	* @dev Function to get voting status
 	* @param propID proposition ID
-    * returns status: 0 pending, 1 live, 2 ended
+    * returns status: 0 pending, 1 live, 2 ended, 99 not existant
     * returns total eligible votes
     * returns votes cast so far
     * returns if quorum is reached
@@ -176,24 +193,28 @@ contract UstxVoting {
         uint256 votes;
         uint256 quorum=0;
 
-        if (block.timestamp>_propInfo[propID].startTime) {
-            status=1;             //voting is live
-        }
-        if (block.timestamp>_propInfo[propID].endTime) {
-            status=2;             //voting ended
-        }
+		if (_propInfo[propID].startTime>0) {
+	        if (block.timestamp>_propInfo[propID].startTime) {
+	            status=1;             //voting is live
+	        }
+	        if (block.timestamp>_propInfo[propID].endTime) {
+	            status=2;             //voting ended
+	        }
 
-        votes = _propInfo[propID].castVotes[0]+
-            _propInfo[propID].castVotes[1]+
-            _propInfo[propID].castVotes[2]+
-            _propInfo[propID].castVotes[3]+
-            _propInfo[propID].castVotes[4];
+	        votes = _propInfo[propID].castVotes[0]+
+	            _propInfo[propID].castVotes[1]+
+	            _propInfo[propID].castVotes[2]+
+	            _propInfo[propID].castVotes[3]+
+	            _propInfo[propID].castVotes[4];
 
-        if (votes > _propInfo[propID].quorum) {
-            quorum = 1;
+	        if (votes > _propInfo[propID].quorum) {
+	            quorum = 1;
+	        }
+
+	        return (status, _propInfo[propID].totalVotes, votes, quorum);
+        } else {
+            return (99,0,0,0);
         }
-
-        return (status, _propInfo[propID].totalVotes, votes, quorum);
     }
 
    /**
@@ -216,7 +237,7 @@ contract UstxVoting {
    /**
 	* @dev Function to get voting status
 	* @param propID proposition ID
-    * returns votes cast so far
+    * returns votes cast so far for each option
 	*/
     function getVoteResult(uint256 propID) public view returns (uint256, uint256, uint256, uint256, uint256) {
         if (block.timestamp>_propInfo[propID].endTime || (_showResultsDuring>0 && _propInfo[propID].hasVoted[msg.sender]>0)) {
@@ -231,6 +252,13 @@ contract UstxVoting {
     }
 
     /* ========== VOTING FUNCTIONS ========== */
+
+    /**
+	* @dev Function to vote for yes/no proposition
+	* @param propID proposition ID
+    * @param yesVotes votes for yes
+    * @param noVotes votes for no
+	*/
     function voteSimple(uint256 propID, uint256 yesVotes, uint256 noVotes) public nonReentrant {
         require(_propInfo[propID].propType==1,"WRONG PROPOSITION TYPE");
         require((yesVotes==0 && noVotes !=0) || (yesVotes!=0 && noVotes ==0),"INVALID VOTE");
@@ -247,6 +275,12 @@ contract UstxVoting {
         emit Voted(propID);
     }
 
+    /**
+	* @dev Function to vote for yes/no proposition for team
+	* @param propID proposition ID
+    * @param yesVotes votes for yes
+    * @param noVotes votes for no
+	*/
     function voteSimpleTeam(uint256 propID, uint256 yesVotes, uint256 noVotes) public onlyAdmin nonReentrant {
         require(_propInfo[propID].propType==1,"WRONG PROPOSITION TYPE");
         require((yesVotes==0 && noVotes !=0) || (yesVotes!=0 && noVotes ==0),"INVALID VOTE");
@@ -263,6 +297,15 @@ contract UstxVoting {
         emit Voted(propID);
     }
 
+    /**
+	* @dev Function to vote for multiple options proposition
+	* @param propID proposition ID
+    * @param opt0 votes for option 0
+    * @param opt1 votes for option 1
+    * @param opt2 votes for option 2
+    * @param opt3 votes for option 3
+    * @param opt4 votes for option 4
+	*/
     function voteMulti(uint256 propID, uint256 opt0, uint256 opt1, uint256 opt2, uint256 opt3, uint256 opt4) public nonReentrant {
         require(_propInfo[propID].propType>1,"WRONG PROPOSITION TYPE");
         require(opt0>0 || opt1>0 || opt2>0 || opt3>0 || opt4>0,"INVALID VOTE");
@@ -282,6 +325,15 @@ contract UstxVoting {
         emit Voted(propID);
     }
 
+    /**
+	* @dev Function to vote for multiple options proposition for team
+	* @param propID proposition ID
+    * @param opt0 votes for option 0
+    * @param opt1 votes for option 1
+    * @param opt2 votes for option 2
+    * @param opt3 votes for option 3
+    * @param opt4 votes for option 4
+	*/
     function voteMultiTeam(uint256 propID, uint256 opt0, uint256 opt1, uint256 opt2, uint256 opt3, uint256 opt4) public onlyAdmin nonReentrant {
         require(_propInfo[propID].propType>1,"WRONG PROPOSITION TYPE");
         require(opt0>0 || opt1>0 || opt2>0 || opt3>0 || opt4>0,"INVALID VOTE");
@@ -302,7 +354,15 @@ contract UstxVoting {
     }
     /* ========== RESTRICTED FUNCTIONS ========== */
 
-    function newProposition(uint8 propType, uint256 start, uint256 end, uint256 qPerc) public onlyAdmin {
+    /**
+	* @dev Function to create new proposition
+	* @param propType proposition type
+    * @param start begin timestamp
+    * @param end end timestamp
+    * @param qPerc quorum percentage
+    * returns propIndex
+	*/
+    function newProposition(uint8 propType, uint256 start, uint256 end, uint256 qPerc) public onlyAdmin returns (uint256){
         require(propType<6,"WRONG PROPOSITION TYPE");
         require(start>block.timestamp && end>block.timestamp && end>start,"CHECK START AND END TIMES");
 
@@ -320,9 +380,18 @@ contract UstxVoting {
         info.teamVoted = 0;
 
         emit PropCreated(propIndex, propType, start, end, qPerc);
-        propIndex++;
+
+        return (propIndex++);
     }
 
+    /**
+	* @dev Function to edit proposition
+    * @param propID prosition ID to edit
+	* @param propType proposition type
+    * @param start begin timestamp
+    * @param end end timestamp
+    * @param qPerc quorum percentage
+	*/
     function editProposition(uint256 propID, uint8 propType, uint256 start, uint256 end, uint256 qPerc) public onlyAdmin {
         require(propType<6,"WRONG PROPOSITION TYPE");
         require(start>block.timestamp && end>block.timestamp && end>start,"CHECK START AND END TIMES");
@@ -337,11 +406,19 @@ contract UstxVoting {
         emit PropEdited(propID, propType, start, end, qPerc);
     }
 
+    /**
+	* @dev Function to set vote lot size
+    * @param newLot new value
+    */
     function setVoteLot(uint256 newLot) public onlyAdmin {
         require(newLot>0,"INVALID LOT NUMBER");
         _voteLot = newLot;
     }
 
+    /**
+	* @dev Function to enable viewing result during voting
+    * @param allowDuring enabled is >0
+    */
     function setResultsVisibility(uint256 allowDuring) public onlyAdmin {
         _showResultsDuring = allowDuring;
     }
@@ -353,7 +430,7 @@ contract UstxVoting {
 
 	/**
 	* @dev Function to set Stake contract address (only admin)
-	* @param contractAddress address of the traded token contract
+	* @param contractAddress address of the staking contract
 	*/
 	function setStakingAddr(address contractAddress) public onlyAdmin {
 	    require(contractAddress != address(0), "INVALID_ADDRESS");
