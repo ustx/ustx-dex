@@ -225,13 +225,15 @@ contract UstxVoting {
     * returns end time
     * returns total votes
     * returns quorum value
+    * returns team votes
 	*/
-    function getPropInfo(uint256 propID) public view returns (uint256, uint256, uint256, uint256, uint256) {
+    function getPropInfo(uint256 propID) public view returns (uint256, uint256, uint256, uint256, uint256, uint256) {
         return (_propInfo[propID].propType,
             _propInfo[propID].startTime,
             _propInfo[propID].endTime,
             _propInfo[propID].totalVotes,
-            _propInfo[propID].quorum);
+            _propInfo[propID].quorum,
+            _propInfo[propID].teamVotes);
     }
 
    /**
