@@ -15,12 +15,6 @@ import "./IRewards.sol";
 import "./Roles.sol";
 import "./Initializable.sol";
 
-//TODO
-//
-// Set parametri
-// getEquityValue: aggiungere anche balance USDT, SUN, JST
-//
-
 /// @title Up Stable Token eXperiment Warp contract
 /// @author USTX Team
 /// @dev This contract implements the warp app
@@ -58,7 +52,6 @@ contract Warp is Initializable{
 
 
     uint256 public currentEpoch;
-    uint256 public capitalFactor;
 
     uint256 private _totalDeposits;
     uint256 private _totalWarp;
@@ -75,6 +68,9 @@ contract Warp is Initializable{
     uint256 private _maxTotal;
     uint256 public warpFactor;
     uint256 public warpRate;
+    uint256 public userRewardPerc;
+    uint256 public buybackRewardPerc;
+    address public buybackAccount;
 
     mapping(address => uint256) private _balances;
     mapping(address => uint256) private _balancesWarp;
@@ -111,7 +107,6 @@ contract Warp is Initializable{
 		_addAdmin(msg.sender);		//default admin
 		_minAdmins = 2;					//at least 2 admins in charge
         currentEpoch = 1;
-        capitalFactor = 1000;
         _totalRewards = 0;
         _paidRewards = 0;
         _lockDuration = 1;  //1 epoch lock
@@ -120,6 +115,8 @@ contract Warp is Initializable{
         _maxTotal = 1000000000000000000000000;      //1000000 in total
         warpRate = 500;              //50% max warp yield increase, in th
         warpFactor = 10;               //max warp is obtained if user has 10 USTX in staking every 1 USDD in deposit
+        userRewardPerc = 85;           //user share of the rewards
+        buybackRewardPerc = 10;        //buyback share of the rewards
         usddToken = IERC20(0x94F24E992cA04B49C6f2a2753076Ef8938eD4daa);     //USDD
         usdtToken = IERC20(0xa614f803B6FD780986A42c78Ec9c7f77e6DeD13C);     //USDT
         sunToken = IERC20(0xb4A428ab7092c2f1395f376cE297033B3bB446C1);      //Sun
@@ -136,6 +133,7 @@ contract Warp is Initializable{
         justLendContract = IComptroller(0x4a33BF2666F2e75f3D6Ad3b9ad316685D5C668D4);        //JustLend Comptroller
         farmTrxUsddContract = IFarm(0x1F446B0225e73BBBe18d83A91a35Ef2b372df6C8);            //USDD-TRX farm
         farmRewardsContract = IRewards(0xa72bEF5581ED09d848ca4380ede64192978b51b9);         //USDD rewards contract
+        buybackAccount = address(0x59b172a17666224C6AeE90b58b20E686d47d9267);                        //Buyback account
     }
 
 
@@ -211,7 +209,7 @@ contract Warp is Initializable{
     }
 
     function getBalances() public view returns(uint256, uint256, uint256) {
-        return (usddToken.balanceOf(address(this)), _totalDeposits, _totalRewards-_paidRewards);
+        return (usddToken.balanceOf(address(this)), _totalDeposits + _totalPendingWithdraw, _totalRewards-_paidRewards);
     }
 
     function allRewards() public view returns (uint256,uint256,uint256,uint256) {
@@ -263,6 +261,20 @@ contract Warp is Initializable{
 
     function getLimits() public view returns (uint256, uint256) {
         return (_maxPerAccount, _maxTotal);
+    }
+
+    function getAvailableLimits(address account) public view returns (uint256, uint256){
+        uint256 totAvailable = 0;
+        uint256 userAvailable = 0;
+
+        if (_maxTotal > _totalDeposits) {
+            totAvailable = _maxTotal - _totalDeposits;
+        }
+
+        if (_maxPerAccount > _balances[account]) {
+            userAvailable = _maxPerAccount - _balances[account];
+        }
+        return (totAvailable, userAvailable);
     }
 
     function getMaxWarp(address user) public view returns (uint256) {
@@ -361,8 +373,10 @@ contract Warp is Initializable{
 
         _balances[msg.sender] -= amount;
         _totalDeposits -= amount;
-        if (capitalFactor<1000) {
-            amount=amount*capitalFactor/1000;           //if capital is not covering 100% of the deposits
+
+        uint256 ratio = getEquityRatio();
+        if (ratio<1000) {
+            amount=amount*ratio/1000;           //if capital is not covering 100% of the deposits
         }
         _pendingWithdraw[msg.sender] += amount;              //move amount from active deposits to pending
         _totalPendingWithdraw += amount;
@@ -413,28 +427,27 @@ contract Warp is Initializable{
     /* ========== RESTRICTED FUNCTIONS ========== */
 
     function newEpoch(uint256 epochRewards) public onlyAdmin {
-        require(usddToken.balanceOf(address(this))> _totalPendingRewards + _totalPendingWithdraw, "Insufficient contract balance");
+        uint256 buybackRewards = epochRewards*buybackRewardPerc /100;
+        require(usddToken.balanceOf(address(this))> _totalPendingRewards + _totalPendingWithdraw + buybackRewards, "Insufficient contract balance");
 
         uint256 total = _totalDeposits + _totalWarp;
 
-        if (_totalDeposits > 0) {
-            _rewardRates[currentEpoch] = epochRewards * 1e18 / total;   //current epoch base APY
-            _totalRewards += epochRewards;
+        uint256 userRewards = epochRewards*userRewardPerc/100;
 
-            emit NewEpoch(currentEpoch, epochRewards, _rewardRates[currentEpoch]);
+        usddToken.transfer(buybackAccount, buybackRewards);
+
+        if (_totalDeposits > 0) {
+            _rewardRates[currentEpoch] = userRewards * 1e18 / total;   //current epoch base APY
+            _totalRewards += userRewards;
+
+            emit NewEpoch(currentEpoch, userRewards, _rewardRates[currentEpoch]);
         }
 
         currentEpoch++;
     }
 
-    function setCapitalFactor(uint256 factor) public onlyAdmin {
-        require(factor>950,"Capital factor cannot be lower than 95%");
-        capitalFactor = factor;
-    }
-
     function setLockDuration(uint256 lockWeeks) public onlyAdmin {
         require(lockWeeks < 5, "Reduce lock duration");
-        require(lockWeeks > 0, "Increase lock duration");
 
         _lockDuration = lockWeeks;
     }
@@ -452,35 +465,31 @@ contract Warp is Initializable{
 	    token.approve(spender, amount);
 	}
 
-    function approveUsdd(address spender, uint256 amount) public onlyAdmin {
-		require(spender != address(0), "INVALID_ADDRESS");
+    function approveAll() public onlyAdmin {
+        //Approve USDD to jUSDD
+        usddToken.approve(address(jUsddToken), 2**256-1);
 
-	    usddToken.approve(spender, amount);
-	}
+        //Approve USDD to SunSwap UsddTrx LP
+        usddToken.approve(address(ssUsddTrxContract), 2**256-1);
 
-    function approveUsdt(address spender, uint256 amount) public onlyAdmin {
-		require(spender != address(0), "INVALID_ADDRESS");
+        //Approve USDD to 2Pool
+        usddToken.approve(address(stableSwapContract), 2**256-1);
 
-	    usdtToken.approve(spender, amount);
-	}
+        //Approve USDT to 2Pool
+        usdtToken.approve(address(stableSwapContract), 2**256-1);
 
-    function approveSun(address spender, uint256 amount) public onlyAdmin {
-		require(spender != address(0), "INVALID_ADDRESS");
+        //Approve Usdt to jUsdt
+        usdtToken.approve(address(jUsdtToken), 2**256-1);
 
-	    sunToken.approve(spender, amount);
-	}
+        //Approve UsddTrx to Farm
+        ssUsddTrxToken.approve(address(farmTrxUsddContract), 2**256-1);
 
-    function approveJst(address spender, uint256 amount) public onlyAdmin {
-		require(spender != address(0), "INVALID_ADDRESS");
+        //Approve JST to SunSwap JstTrx LP
+        jstToken.approve(address(ssJstTrxContract), 2**256-1);
 
-	    jstToken.approve(spender, amount);
-	}
-
-    function approveUsddTrx(address spender, uint256 amount) public onlyAdmin {
-		require(spender != address(0), "INVALID_ADDRESS");
-
-	    ssUsddTrxToken.approve(spender, amount);
-	}
+        //Approve SUN to SunSwap SunTrx LP
+        sunToken.approve(address(ssSunTrxContract), 2**256-1);
+    }
 
     //
     // JustLend interface functions
@@ -572,6 +581,16 @@ contract Warp is Initializable{
         return ret;
     }
 
+    function swapTrxForUsdd(uint256 amount) public onlyAdmin returns(uint256){
+        require(amount > 0, "AMOUNT_INVALID");
+
+        uint256 ret;
+
+        ret = ssUsddTrxContract.trxToTokenSwapInput{value: amount}(1, block.timestamp+10);
+
+        return ret;
+    }
+
     function ssAddLiquidity(uint256 amountTrx) public onlyAdmin returns(uint256){
         require(amountTrx > 0, "AMOUNT_INVALID");
 
@@ -585,12 +604,12 @@ contract Warp is Initializable{
     function ssRemoveLiquidity(uint256 lpAmount) public onlyAdmin returns(uint256, uint256){
         require(lpAmount > 0, "AMOUNT_INVALID");
 
-        uint256 trx;
+        uint256 trxT;
         uint256 usdd;
 
-        (trx, usdd) = ssUsddTrxContract.removeLiquidity(lpAmount, 1,1,block.timestamp+60);
+        (trxT, usdd) = ssUsddTrxContract.removeLiquidity(lpAmount, 1,1,block.timestamp+60);
 
-        return(trx, usdd);
+        return(trxT, usdd);
     }
 
     //
@@ -697,8 +716,25 @@ contract Warp is Initializable{
     }
 
     function getAccountLiquidity() public view returns(uint256, uint256, uint256){
-        return justLendContract.getAccountLiquidity(address(this));
+        uint256 err;
+        uint256 excess;
+        uint256 shortage;
+
+        (err, excess, shortage) = justLendContract.getAccountLiquidity(address(this));
+
+        excess = getTrxUsddValue(excess);           //convert TRX values in USDD
+        shortage = getTrxUsddValue(shortage);       //convert TRX values in USDD
+
+        return (err, excess, shortage);
     }
+
+    function getEquityRatio() public view returns(uint256) {
+        (uint256 equity,,,,) = getEquityValue();
+        uint256 capital = _totalDeposits + _totalPendingWithdraw + _totalRewards - _paidRewards;
+
+        return equity * 1000 / capital;
+    }
+
 
     //
     // Set contract addresses
@@ -784,6 +820,11 @@ contract Warp is Initializable{
 		farmRewardsContract = IRewards(contractAddress);
 	}
 
+	function setBuybackAddr(address account) public onlyAdmin {
+	    require(account != address(0), "INVALID_ADDRESS");
+		buybackAccount = account;
+	}
+
 	/**
 	* @dev Function to set balance limits (only admin)
 	* @param maxUser limit per account
@@ -799,6 +840,13 @@ contract Warp is Initializable{
         warpRate = rate;
 	}
 
+	function setRewardsPerc(uint256 userPerc, uint256 buybackPerc) public onlyAdmin {
+        require(userPerc >= 75, "USER SHARE AT LEAST 75");
+        require(userPerc + buybackPerc <= 100, "CHECK PERCENTAGES");
+        userRewardPerc = userPerc;
+        buybackRewardPerc = buybackPerc;
+	}
+
 	/**
 	* @dev Function to enable/disable deposit (only admin)
 	* @param enable deposits enable
@@ -811,17 +859,19 @@ contract Warp is Initializable{
 	* @dev Function to withdraw lost tokens balance (only admin)
 	* @param tokenAddr Token address
 	*/
-	function withdrawToken(address tokenAddr) public onlyAdmin returns(uint256) {
+	function withdrawToken(address tokenAddr, uint256 amount) public onlyAdmin returns(uint256) {
 	    require(tokenAddr != address(0), "INVALID_ADDRESS");
-		//require(tokenAddr != address(usddToken), "Cannot withdraw staked tokens");
 
 		IERC20 token = IERC20(tokenAddr);
 
-		uint256 balance = token.balanceOf(address(this));
+        uint256 toMove = amount;
+		if (amount == 0) {
+            toMove = token.balanceOf(address(this));
+        }
 
-		token.transfer(msg.sender,balance);
+		token.transfer(msg.sender,toMove);
 
-		return balance;
+		return toMove;
 	}
 
 	/**
