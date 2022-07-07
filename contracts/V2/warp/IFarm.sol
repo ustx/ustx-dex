@@ -15,4 +15,7 @@ interface IFarm {
     //get deposited balance
     function balanceOf(address account) external view returns(uint256);
 
+    //get claimable pending rewards
+    function claimable_reward_for(address addr) external view returns(uint256);
+
 }

@@ -681,7 +681,7 @@ contract Warp is Initializable{
         lpTotal = ssUsddTrxToken.totalSupply();
         lpThis = ssUsddTrxToken.balanceOf(address(this));
         lpThis += farmTrxUsddContract.balanceOf(address(this));
-        rewards = farmTrxUsddContract.claimable_reward(address(this));
+        rewards = farmTrxUsddContract.claimable_reward_for(address(this));
 
         ssUsddBalance = usddToken.balanceOf(address(ssUsddTrxContract));
 
@@ -919,7 +919,7 @@ contract Warp is Initializable{
             _lastUpdate[account] = currentEpoch;
         }
 
-        for (uint i=_lastUpdate[account];i<currentEpoch;i++) {
+        for (uint i=_lastUpdate[account];i<currentEpoch;i++) {        
             temp += _rewardRates[i];      //changed
         }
 
