@@ -374,7 +374,7 @@ contract Warp is Initializable{
         _balances[msg.sender] -= amount;
         _totalDeposits -= amount;
 
-        uint256 ratio = getEquityRatio();
+        (uint256 ratio,,) = getEquityRatio();
         if (ratio<1000) {
             amount=amount*ratio/1000;           //if capital is not covering 100% of the deposits
         }
@@ -425,6 +425,22 @@ contract Warp is Initializable{
     }
 
     /* ========== RESTRICTED FUNCTIONS ========== */
+
+    function newEpochPreview(uint256 epochRewards) public view onlyAdmin returns(uint256, uint256, uint256, uint256, uint256){
+        uint256 buybackRewards = epochRewards*buybackRewardPerc /100;
+        require(usddToken.balanceOf(address(this))> _totalPendingRewards + _totalPendingWithdraw + buybackRewards, "Insufficient contract balance");
+
+        uint256 total = _totalDeposits + _totalWarp;
+
+        uint256 userRewards = epochRewards*userRewardPerc/100;
+
+        uint256 rate = 0;
+        if (_totalDeposits > 0) {
+            rate = userRewards * 1e18 / total;   //current epoch base APY
+        }
+
+        return (rate, userRewards, buybackRewards, _totalPendingRewards + _totalPendingWithdraw, usddToken.balanceOf(address(this)));
+    }
 
     function newEpoch(uint256 epochRewards) public onlyAdmin {
         uint256 buybackRewards = epochRewards*buybackRewardPerc /100;
@@ -660,15 +676,16 @@ contract Warp is Initializable{
         uint256 lpTotal;
         uint256 ssUsddBalance;
         uint256 lpThis;
-        uint256 lpFarm;
+        uint256 rewards;
 
         lpTotal = ssUsddTrxToken.totalSupply();
         lpThis = ssUsddTrxToken.balanceOf(address(this));
-        lpFarm = farmTrxUsddContract.balanceOf(address(this));
+        lpThis += farmTrxUsddContract.balanceOf(address(this));
+        rewards = farmTrxUsddContract.claimable_reward(address(this));
 
         ssUsddBalance = usddToken.balanceOf(address(ssUsddTrxContract));
 
-        return ssUsddBalance * 2 * (lpThis+lpFarm) / lpTotal;
+        return ssUsddBalance * 2 * lpThis / lpTotal + rewards;
     }
 
     function getTrxUsddValue(uint256 amount) public view returns(uint256){
@@ -728,11 +745,19 @@ contract Warp is Initializable{
         return (err, excess, shortage);
     }
 
-    function getEquityRatio() public view returns(uint256) {
+    function getEquityRatio() public view returns(uint256, uint256, uint256) {
         (uint256 equity,,,,) = getEquityValue();
         uint256 capital = _totalDeposits + _totalPendingWithdraw + _totalRewards - _paidRewards;
+        uint256 margin = 0;
+        uint256 shortage = 0;
 
-        return equity * 1000 / capital;
+        if (equity > capital) {
+            margin = equity-capital;
+        } else {
+            shortage = capital - equity;
+        }
+
+        return (equity * 1000 / capital, margin, shortage);
     }
 
 
