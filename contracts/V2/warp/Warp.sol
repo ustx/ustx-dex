@@ -347,6 +347,26 @@ contract Warp is Initializable{
         emit Deposit(msg.sender, amount);
     }
 
+    function depositAndSupply(uint256 amount) public nonReentrant updateReward(msg.sender) {
+        require(amount > 0, "Cannot stake 0");
+        require(_depositEnable > 0, "Deposits not allowed");
+        require(_balances[msg.sender] + amount < _maxPerAccount, "User maximum allocation reached");
+        require(_totalDeposits + amount < _maxTotal, "Total maximum allocation reached");
+
+        _totalDeposits += amount;
+        _balances[msg.sender] += amount;
+
+        _updateWarp(msg.sender);
+
+        _withdrawLock[msg.sender]=currentEpoch + 5200;        //locked
+        _rewardLock[msg.sender]=currentEpoch + 5200;        //locked
+        usddToken.transferFrom(msg.sender, address(this), amount);
+
+        jUsddToken.mint(amount);                            //supply new liquidity to JL
+
+        emit Deposit(msg.sender, amount);
+    }
+
     /* ========== COMPOUND FUNCTION ========== */
     function compound() public nonReentrant updateReward(msg.sender) {
         uint256 reward = _rewards[msg.sender];
@@ -426,7 +446,7 @@ contract Warp is Initializable{
 
     /* ========== RESTRICTED FUNCTIONS ========== */
 
-    function newEpochPreview(uint256 epochRewards) public view onlyAdmin returns(uint256, uint256, uint256, uint256, uint256){
+    function newEpochPreview(uint256 epochRewards) public view returns(uint256, uint256, uint256, uint256, uint256){
         uint256 buybackRewards = epochRewards*buybackRewardPerc /100;
         require(usddToken.balanceOf(address(this))> _totalPendingRewards + _totalPendingWithdraw + buybackRewards, "Insufficient contract balance");
 
@@ -919,7 +939,7 @@ contract Warp is Initializable{
             _lastUpdate[account] = currentEpoch;
         }
 
-        for (uint i=_lastUpdate[account];i<currentEpoch;i++) {        
+        for (uint i=_lastUpdate[account];i<currentEpoch;i++) {
             temp += _rewardRates[i];      //changed
         }
 
