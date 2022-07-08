@@ -414,6 +414,13 @@ contract Warp is Initializable{
         _pendingWithdraw[msg.sender] = 0;
         _withdrawLock[msg.sender]=currentEpoch + 5200;        //re-lock account
 
+        (,uint256 margin,) = getAccountLiquidity();
+        (,uint256 usddSupply,,uint256 usddRate) = jUsddToken.getAccountSnapshot(address(this));
+        usddSupply = usddSupply*usddRate/10**18;
+
+        require(margin-temp > usddSupply / 10, "INSUFFICIENT MARGIN ON JL");     //keep at least 10% margin after withdrawal
+        jUsddToken.redeemUnderlying(temp);
+
         usddToken.transfer(msg.sender, temp);
 
         emit Withdraw(msg.sender, temp);
@@ -463,6 +470,8 @@ contract Warp is Initializable{
     }
 
     function newEpoch(uint256 epochRewards) public onlyAdmin {
+        require(epochRewards>0, "REWARDS MUST BE > 0");
+
         uint256 buybackRewards = epochRewards*buybackRewardPerc /100;
         require(usddToken.balanceOf(address(this))> _totalPendingRewards + _totalPendingWithdraw + buybackRewards, "Insufficient contract balance");
 
@@ -470,7 +479,9 @@ contract Warp is Initializable{
 
         uint256 userRewards = epochRewards*userRewardPerc/100;
 
-        usddToken.transfer(buybackAccount, buybackRewards);
+        if (buybackRewards>0) {
+            usddToken.transfer(buybackAccount, buybackRewards);
+        }
 
         if (_totalDeposits > 0) {
             _rewardRates[currentEpoch] = userRewards * 1e18 / total;   //current epoch base APY
@@ -680,11 +691,8 @@ contract Warp is Initializable{
         farmTrxUsddContract.withdraw(amount);
     }
 
-    function farmClaimUsdd() public onlyAdmin {
+    function farmClaim() public onlyAdmin {
         farmTrxUsddContract.claim_rewards();
-    }
-
-    function farmClaimSun() public onlyAdmin {
         farmRewardsContract.claim(0x0000000000000000000000411f446b0225e73bbbe18d83a91a35ef2b372df6c8);
     }
 
@@ -741,7 +749,7 @@ contract Warp is Initializable{
         trxBor = getTrxUsddValue(trxBor);
         usdtBor = getUsdtUsddValue(usdtBor);
 
-        thisBal = usddToken.balanceOf(address(this));       //aggiungere anche balance SUN, JST???
+        thisBal = usddToken.balanceOf(address(this));
         thisBal += getUsdtUsddValue(usdtToken.balanceOf(address(this)));
         thisBal += getTrxUsddValue(address(this).balance);
 
@@ -950,5 +958,4 @@ contract Warp is Initializable{
         _lastUpdate[account] = currentEpoch;
         _;
     }
-
 }
