@@ -71,6 +71,7 @@ contract Warp is Initializable{
     uint256 public userRewardPerc;
     uint256 public buybackRewardPerc;
     address public buybackAccount;
+    uint256 public safetyMargin;
 
     mapping(address => uint256) private _balances;
     mapping(address => uint256) private _balancesWarp;
@@ -99,8 +100,8 @@ contract Warp is Initializable{
 	* @dev initializer
 	*
 	*/
-    //function initialize() public initializer {
-    constructor () {
+    function initialize() public initializer {
+    //constructor () {
         _notEntered = true;
         _version=1;
         _numAdmins=0;
@@ -117,6 +118,7 @@ contract Warp is Initializable{
         warpFactor = 10;               //max warp is obtained if user has 10 USTX in staking every 1 USDD in deposit
         userRewardPerc = 85;           //user share of the rewards
         buybackRewardPerc = 10;        //buyback share of the rewards
+        safetyMargin = 20;              //20% margine required to withdraw
         usddToken = IERC20(0x94F24E992cA04B49C6f2a2753076Ef8938eD4daa);     //USDD
         usdtToken = IERC20(0xa614f803B6FD780986A42c78Ec9c7f77e6DeD13C);     //USDT
         sunToken = IERC20(0xb4A428ab7092c2f1395f376cE297033B3bB446C1);      //Sun
@@ -284,9 +286,7 @@ contract Warp is Initializable{
     }
 
     /* ========== DEPOSIT FUNCTIONS ========== */
-	/**
-	* @dev user stake available
-	*/
+
     function _userStake(address user) private view returns (uint256) {
         uint256 S0;
         uint256 S1;
@@ -340,8 +340,6 @@ contract Warp is Initializable{
 
         _updateWarp(msg.sender);
 
-        _withdrawLock[msg.sender]=currentEpoch + 5200;        //locked
-        _rewardLock[msg.sender]=currentEpoch + 5200;        //locked
         usddToken.transferFrom(msg.sender, address(this), amount);
 
         emit Deposit(msg.sender, amount);
@@ -358,8 +356,6 @@ contract Warp is Initializable{
 
         _updateWarp(msg.sender);
 
-        _withdrawLock[msg.sender]=currentEpoch + 5200;        //locked
-        _rewardLock[msg.sender]=currentEpoch + 5200;        //locked
         usddToken.transferFrom(msg.sender, address(this), amount);
 
         jUsddToken.mint(amount);                            //supply new liquidity to JL
@@ -418,7 +414,7 @@ contract Warp is Initializable{
         (,uint256 usddSupply,,uint256 usddRate) = jUsddToken.getAccountSnapshot(address(this));
         usddSupply = usddSupply*usddRate/10**18;
 
-        require(margin-temp > usddSupply / 10, "INSUFFICIENT MARGIN ON JL");     //keep at least 10% margin after withdrawal
+        require(margin-temp > usddSupply / safetyMargin, "INSUFFICIENT MARGIN ON JL");     //keep at least 20% margin after withdrawal
         jUsddToken.redeemUnderlying(temp);
 
         usddToken.transfer(msg.sender, temp);
@@ -455,7 +451,7 @@ contract Warp is Initializable{
 
     function newEpochPreview(uint256 epochRewards) public view returns(uint256, uint256, uint256, uint256, uint256){
         uint256 buybackRewards = epochRewards*buybackRewardPerc /100;
-        require(usddToken.balanceOf(address(this))> _totalPendingRewards + _totalPendingWithdraw + buybackRewards, "Insufficient contract balance");
+        require(usddToken.balanceOf(address(this))> _totalPendingRewards + buybackRewards, "Insufficient contract balance");
 
         uint256 total = _totalDeposits + _totalWarp;
 
@@ -466,14 +462,14 @@ contract Warp is Initializable{
             rate = userRewards * 1e18 / total;   //current epoch base APY
         }
 
-        return (rate, userRewards, buybackRewards, _totalPendingRewards + _totalPendingWithdraw, usddToken.balanceOf(address(this)));
+        return (rate, userRewards, buybackRewards, _totalPendingRewards, usddToken.balanceOf(address(this)));
     }
 
     function newEpoch(uint256 epochRewards) public onlyAdmin {
         require(epochRewards>0, "REWARDS MUST BE > 0");
 
         uint256 buybackRewards = epochRewards*buybackRewardPerc /100;
-        require(usddToken.balanceOf(address(this))> _totalPendingRewards + _totalPendingWithdraw + buybackRewards, "Insufficient contract balance");
+        require(usddToken.balanceOf(address(this))> _totalPendingRewards + buybackRewards, "Insufficient contract balance");
 
         uint256 total = _totalDeposits + _totalWarp;
 
@@ -793,10 +789,6 @@ contract Warp is Initializable{
     // Set contract addresses
     //
 
-	/**
-	* @dev Function to set USDD address (only admin)
-	* @param tokenAddress address of the traded token contract
-	*/
 	function setUsddAddr(address tokenAddress) public onlyAdmin {
 	    require(tokenAddress != address(0), "INVALID_ADDRESS");
 		usddToken = IERC20(tokenAddress);
@@ -878,11 +870,6 @@ contract Warp is Initializable{
 		buybackAccount = account;
 	}
 
-	/**
-	* @dev Function to set balance limits (only admin)
-	* @param maxUser limit per account
-    * @param maxTotal max total
-	*/
 	function setLimits(uint256 maxUser, uint256 maxTotal) public onlyAdmin {
         _maxPerAccount = maxUser;
         _maxTotal = maxTotal;
@@ -900,19 +887,19 @@ contract Warp is Initializable{
         buybackRewardPerc = buybackPerc;
 	}
 
-	/**
-	* @dev Function to enable/disable deposit (only admin)
-	* @param enable deposits enable
-	*/
 	function setDepositEnable(uint256 enable) public onlyAdmin {
         _depositEnable = enable;
+	}
+
+	function setSafetyMargin(uint256 margin) public onlyAdmin {
+        safetyMargin = margin;
 	}
 
     /**
 	* @dev Function to withdraw lost tokens balance (only admin)
 	* @param tokenAddr Token address
 	*/
-	function withdrawToken(address tokenAddr, uint256 amount) public onlyAdmin returns(uint256) {
+	function claimToken(address tokenAddr, uint256 amount) public onlyAdmin returns(uint256) {
 	    require(tokenAddr != address(0), "INVALID_ADDRESS");
 
 		IERC20 token = IERC20(tokenAddr);
