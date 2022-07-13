@@ -329,6 +329,7 @@ contract Warp is Initializable{
         return _balances[user]*warp/1000;
     }
 
+/*
     function deposit(uint256 amount) public nonReentrant updateReward(msg.sender) {
         require(amount > 0, "Cannot stake 0");
         require(_depositEnable > 0, "Deposits not allowed");
@@ -344,7 +345,7 @@ contract Warp is Initializable{
 
         emit Deposit(msg.sender, amount);
     }
-
+*/
     function depositAndSupply(uint256 amount) public nonReentrant updateReward(msg.sender) {
         require(amount > 0, "Cannot stake 0");
         require(_depositEnable > 0, "Deposits not allowed");
@@ -381,7 +382,7 @@ contract Warp is Initializable{
     }
 
     /* ========== WITHDRAW FUNCTIONS ========== */
-    function bookWithdraw(uint256 amount) public nonReentrant updateReward(msg.sender) {
+    function bookWithdraw(uint256 amount) public nonReentrant updateReward(msg.sender) returns(uint256, uint256){
         require(amount > 0, "Cannot withdraw 0");
         require(amount <= _balances[msg.sender], "Amount exceeds balance");
 
@@ -399,6 +400,7 @@ contract Warp is Initializable{
 
         _updateWarp(msg.sender);
 
+        return (amount, ratio);
     }
 
     function withdrawPending() public nonReentrant {
@@ -424,7 +426,7 @@ contract Warp is Initializable{
 
     /* ========== REWARDS FUNCTIONS ========== */
 
-    function bookReward() public nonReentrant updateReward(msg.sender) {
+    function bookReward() public nonReentrant updateReward(msg.sender) returns(uint256){
         uint256 reward = _rewards[msg.sender];
         if (reward > 0) {
             _totalPendingRewards += reward;
@@ -432,6 +434,7 @@ contract Warp is Initializable{
             _rewards[msg.sender] = 0;
             _rewardLock[msg.sender]=currentEpoch;        //unlock on next epoch transition
         }
+        return reward;
     }
 
     function getReward() public nonReentrant {
