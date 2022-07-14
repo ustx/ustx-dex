@@ -329,23 +329,6 @@ contract Warp is Initializable{
         return _balances[user]*warp/1000;
     }
 
-/*
-    function deposit(uint256 amount) public nonReentrant updateReward(msg.sender) {
-        require(amount > 0, "Cannot stake 0");
-        require(_depositEnable > 0, "Deposits not allowed");
-        require(_balances[msg.sender] + amount < _maxPerAccount, "User maximum allocation reached");
-        require(_totalDeposits + amount < _maxTotal, "Total maximum allocation reached");
-
-        _totalDeposits += amount;
-        _balances[msg.sender] += amount;
-
-        _updateWarp(msg.sender);
-
-        usddToken.transferFrom(msg.sender, address(this), amount);
-
-        emit Deposit(msg.sender, amount);
-    }
-*/
     function depositAndSupply(uint256 amount) public nonReentrant updateReward(msg.sender) {
         require(amount > 0, "Cannot stake 0");
         require(_depositEnable > 0, "Deposits not allowed");
@@ -382,16 +365,17 @@ contract Warp is Initializable{
     }
 
     /* ========== WITHDRAW FUNCTIONS ========== */
-    function bookWithdraw(uint256 amount) public nonReentrant updateReward(msg.sender) returns(uint256, uint256){
+    function bookWithdraw(uint256 amount) public nonReentrant updateReward(msg.sender) returns(uint256){
         require(amount > 0, "Cannot withdraw 0");
         require(amount <= _balances[msg.sender], "Amount exceeds balance");
 
         _withdrawLock[msg.sender]=currentEpoch + _lockDuration;        //set unlock time
 
+        (uint256 ratio,,) = getEquityRatio();
+
         _balances[msg.sender] -= amount;
         _totalDeposits -= amount;
 
-        (uint256 ratio,,) = getEquityRatio();
         if (ratio<1000) {
             amount=amount*ratio/1000;           //if capital is not covering 100% of the deposits
         }
@@ -400,7 +384,7 @@ contract Warp is Initializable{
 
         _updateWarp(msg.sender);
 
-        return (amount, ratio);
+        return (amount);
     }
 
     function withdrawPending() public nonReentrant {
@@ -454,7 +438,6 @@ contract Warp is Initializable{
 
     function newEpochPreview(uint256 epochRewards) public view returns(uint256, uint256, uint256, uint256, uint256){
         uint256 buybackRewards = epochRewards*buybackRewardPerc /100;
-        require(usddToken.balanceOf(address(this))> _totalPendingRewards + buybackRewards, "Insufficient contract balance");
 
         uint256 total = _totalDeposits + _totalWarp;
 
