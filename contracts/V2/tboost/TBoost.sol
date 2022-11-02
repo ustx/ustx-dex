@@ -19,7 +19,7 @@ import "./Initializable.sol";
 /// @title Up Stable Token eXperiment T-Boost contract
 /// @author USTX Team
 /// @dev This contract implements the T-Bost app
-contract Warp is Initializable{
+contract TBoost is Initializable{
 	using Roles for Roles.Role;
 
 	/***********************************|
@@ -61,15 +61,12 @@ contract Warp is Initializable{
     uint256 private _totalRewards;
     uint256 private _paidRewards;
     uint256 private _totalPendingWithdraw;
-    uint256 private _totalPendingRewards;
 
     uint256 private _lockDuration;
 
     uint256 private _depositEnable;
     uint256 private _maxPerAccount;
     uint256 private _maxTotal;
-    //uint256 public warpFactor;
-    //uint256 public warpRate;
     uint256 public userRewardPerc;
     uint256 public buybackRewardPerc;
     address public buybackAccount;
@@ -77,14 +74,10 @@ contract Warp is Initializable{
     uint256 public lpRatio;
 
     mapping(address => uint256) private _balances;
-    //mapping(address => uint256) private _balancesWarp;
     mapping(address => uint256) private _lastUpdate;
     mapping(address => uint256) private _rewards;
     mapping(address => uint256) private _withdrawLock;
-    mapping(address => uint256) private _rewardLock;
     mapping(address => uint256) private _pendingWithdraw;
-    mapping(address => uint256) private _pendingReward;
-
     mapping(uint256 => uint256) private _rewardRates;
 
     //Last variable
@@ -214,12 +207,12 @@ contract Warp is Initializable{
         return (_totalDeposits);
     }
 
-    function getBalances() public view returns(uint256, uint256, uint256) {
-        return (usddToken.balanceOf(address(this)), _totalDeposits + _totalPendingWithdraw, _totalRewards-_paidRewards);
+    function getBalances() public view returns(uint256, uint256, uint256, uint256) {
+        return (address(this).balance, _totalDeposits + _totalPendingWithdraw, ustxToken.balanceOf(address(this)), _totalRewards-_paidRewards);
     }
 
-    function allRewards() public view returns (uint256,uint256,uint256,uint256) {
-        return (_totalRewards, _paidRewards, _totalPendingRewards, _totalRewards-_paidRewards-_totalPendingRewards);       //total, paid, pending, locked
+    function allRewards() public view returns (uint256,uint256,uint256) {
+        return (_totalRewards, _paidRewards, _totalRewards-_paidRewards);       //total, paid, pending
     }
 
     function balanceOf(address account) public view returns (uint256, uint256) {
@@ -234,7 +227,7 @@ contract Warp is Initializable{
         return (_depositEnable);
     }
 
-    function earned(address account) public view returns (uint256, uint256) {
+    function earned(address account) public view returns (uint256) {
         uint256 temp=0;
         uint256 reward=0;
         uint256 i;
@@ -244,25 +237,21 @@ contract Warp is Initializable{
         }
         reward = _rewards[account] + temp*_balances[account]/1e18;
 
-        return (reward, _pendingReward[account]);
+        return (reward);
     }
 
     function getBaseAPY(uint256 epoch) public view returns (uint256) {
         return (_rewardRates[epoch]);
     }
 
-    function getLock(address account) public view returns (uint256, uint256) {
+    function getLock(address account) public view returns (uint256) {
         uint256 lock1 = 0;
-        uint256 lock2 = 0;
 
         if (currentEpoch <= _withdrawLock[account]) {
             lock1 = _withdrawLock[account]-currentEpoch + 1;
         }
-        if (currentEpoch <= _rewardLock[account]) {
-            lock2 = _rewardLock[account]-currentEpoch + 1;
-        }
 
-        return (lock1,lock2);
+        return (lock1);
     }
 
     function getLimits() public view returns (uint256, uint256) {
@@ -304,19 +293,7 @@ contract Warp is Initializable{
     }
 
     /* ========== COMPOUND FUNCTION ========== */
-    function compound() public nonReentrant updateReward(msg.sender) {
-        uint256 reward = _rewards[msg.sender];
-        if (reward > 0) {
-            _paidRewards += reward;
-            _rewards[msg.sender] = 0;
-            emit RewardPaid(msg.sender, reward);
-
-            _totalDeposits += reward;
-            _balances[msg.sender] += reward;
-
-            emit Deposit(msg.sender, reward);
-        }
-    }
+    // Cannot compound USTX with TRX
 
     /* ========== WITHDRAW FUNCTIONS ========== */
     function bookWithdraw(uint256 amount) public nonReentrant updateReward(msg.sender) returns(uint256){
@@ -349,76 +326,72 @@ contract Warp is Initializable{
         _withdrawLock[msg.sender]=currentEpoch + 5200;        //re-lock account
 
         (,uint256 margin,) = getAccountLiquidity();
-        (,uint256 usddSupply,,uint256 usddRate) = jUsddToken.getAccountSnapshot(address(this));
-        usddSupply = usddSupply*usddRate/10**18;
+        (,uint256 trxSupply,,uint256 trxRate) = jTrxToken.getAccountSnapshot(address(this));
+        trxSupply = trxSupply*trxRate/10**18;
 
-        require(margin-temp > usddSupply / safetyMargin, "INSUFFICIENT MARGIN ON JL");     //keep at least 20% margin after withdrawal
-        jUsddToken.redeemUnderlying(temp);
+        require(margin-temp > trxSupply / safetyMargin, "INSUFFICIENT MARGIN ON JL");     //keep at least 20% margin after withdrawal
+        jTrxToken.redeemUnderlying(temp);
 
-        usddToken.transfer(msg.sender, temp);
+        //usddToken.transfer(msg.sender, temp);
+
+        address payable rec = payable(msg.sender);
+		(bool sent, ) = rec.call{value: temp}("");
+		require(sent, "Failed to send TRX");
 
         emit Withdraw(msg.sender, temp);
     }
 
     /* ========== REWARDS FUNCTIONS ========== */
 
-    function bookReward() public nonReentrant updateReward(msg.sender) returns(uint256){
+    function getReward() public nonReentrant updateReward(msg.sender) returns(uint256){
+        require(_rewards[msg.sender]>0, "No rewards for user");
         uint256 reward = _rewards[msg.sender];
-        if (reward > 0) {
-            _totalPendingRewards += reward;
-            _pendingReward[msg.sender] += reward;
-            _rewards[msg.sender] = 0;
-            _rewardLock[msg.sender]=currentEpoch;        //unlock on next epoch transition
-        }
-        return reward;
-    }
 
-    function getReward() public nonReentrant {
-        require(currentEpoch > _rewardLock[msg.sender], "Rewards are locked");
-        uint256 reward = _pendingReward[msg.sender];
-        if (reward > 0) {
-            _paidRewards += reward;
-            _pendingReward[msg.sender] = 0;
-            _totalPendingRewards -= reward;
-            _rewardLock[msg.sender]=currentEpoch + 5200;        //re-lock account
-            usddToken.transfer(msg.sender, reward);
-            emit RewardPaid(msg.sender, reward);
-        }
+        _paidRewards += reward;
+        _rewards[msg.sender] = 0;
+        ustxToken.transfer(msg.sender, reward);
+        emit RewardPaid(msg.sender, reward);
+
+        return reward;
     }
 
     /* ========== RESTRICTED FUNCTIONS ========== */
 
-    function newEpochPreview(uint256 epochRewards) public view returns(uint256, uint256, uint256, uint256, uint256){
-        uint256 buybackRewards = epochRewards*buybackRewardPerc /100;
+    function newEpochPreview(uint256 usddEpochRewards) public view returns(uint256, uint256, uint256, uint256){
+        uint256 buybackRewards = usddEpochRewards*buybackRewardPerc /100;
 
         uint256 total = _totalDeposits;
 
-        uint256 userRewards = epochRewards*userRewardPerc/100;
+        uint256 userRewards = usddEpochRewards*userRewardPerc/100;          //user rewards in USDD
+
+        userRewards = ustxDex.buyTokenInputPreview(userRewards/10**12);            //user rewards in USTX
 
         uint256 rate = 0;
         if (_totalDeposits > 0) {
-            rate = userRewards * 1e18 / total;   //current epoch base APY
+            rate = userRewards * 1e18 / total;   //current epoch base rate in USTX per TRX deposited
         }
 
-        return (rate, userRewards, buybackRewards, _totalPendingRewards, usddToken.balanceOf(address(this)));
+        return (rate, userRewards, buybackRewards, usddToken.balanceOf(address(this)));
     }
 
-    function newEpoch(uint256 epochRewards) public onlyAdmin {
-        require(epochRewards>0, "REWARDS MUST BE > 0");
+    function newEpoch(uint256 usddEpochRewards) public onlyAdmin {
+        require(usddEpochRewards>0, "REWARDS MUST BE > 0");
 
-        uint256 buybackRewards = epochRewards*buybackRewardPerc /100;
-        require(usddToken.balanceOf(address(this))> _totalPendingRewards + buybackRewards, "Insufficient contract balance");
+        uint256 buybackRewards = usddEpochRewards*buybackRewardPerc /100;
+        require(usddToken.balanceOf(address(this))> usddEpochRewards, "Insufficient contract balance");
 
         uint256 total = _totalDeposits;
 
-        uint256 userRewards = epochRewards*userRewardPerc/100;
+        uint256 userRewards = usddEpochRewards*userRewardPerc/100;          //user rewards in USDD
+
+        userRewards = ustxDex.buyTokenInput(userRewards/10**12,1,1);            //user rewards in USTX
 
         if (buybackRewards>0) {
             usddToken.transfer(buybackAccount, buybackRewards);
         }
 
         if (_totalDeposits > 0) {
-            _rewardRates[currentEpoch] = userRewards * 1e18 / total;   //current epoch base APY
+            _rewardRates[currentEpoch] = userRewards * 1e18 / total;   //current epoch base rate in USTX per TRX deposited
             _totalRewards += userRewards;
 
             emit NewEpoch(currentEpoch, userRewards, _rewardRates[currentEpoch]);
@@ -455,6 +428,9 @@ contract Warp is Initializable{
 
         //Approve USDD to 2Pool
         usddToken.approve(address(stableSwapContract), 2**256-1);
+
+        //Approve USDD to USTX DEX
+        usddToken.approve(address(ustxDex), 2**256-1);
 
         //Approve USDT to 2Pool
         usdtToken.approve(address(stableSwapContract), 2**256-1);
@@ -628,24 +604,24 @@ contract Warp is Initializable{
         return ssUsddBalance * 2 * lpThis / lpTotal + rewards;
     }
 
-    function getUsddValueInTrx(uint256 amount) public view returns(uint256){
+    function getUsddValueInTrx(uint256 usddAmount) public view returns(uint256){
         uint256 usddBalance;
         uint256 trxBalance;
 
         usddBalance = usddToken.balanceOf(address(ssUsddTrxContract));
         trxBalance = address(ssUsddTrxContract).balance;
 
-        return trxBalance * amount / usddBalance;
+        return trxBalance * usddAmount / usddBalance;
     }
 
-    function getTrxValueInUsdd(uint256 amount) public view returns(uint256){
+    function getTrxValueInUsdd(uint256 trxAmount) public view returns(uint256){
         uint256 usddBalance;
         uint256 trxBalance;
 
         usddBalance = usddToken.balanceOf(address(ssUsddTrxContract));
         trxBalance = address(ssUsddTrxContract).balance;
 
-        return usddBalance * amount / trxBalance;
+        return usddBalance * trxAmount / trxBalance;
     }
 
     function getUsdtUsddValue(uint256 amount) public view returns(uint256){
@@ -796,6 +772,16 @@ contract Warp is Initializable{
 	function setBuybackAddr(address account) public onlyAdmin {
 	    require(account != address(0), "INVALID_ADDRESS");
 		buybackAccount = account;
+	}
+
+	function setDexAddr(address contractAddress) public onlyAdmin {
+	    require(contractAddress != address(0), "INVALID_ADDRESS");
+		ustxDex = IDex(contractAddress);
+	}
+
+	function setUstxAddr(address tokenAddress) public onlyAdmin {
+	    require(tokenAddress != address(0), "INVALID_ADDRESS");
+		ustxToken = IERC20(tokenAddress);
 	}
 
 	function setLimits(uint256 maxUser, uint256 maxTotal) public onlyAdmin {
