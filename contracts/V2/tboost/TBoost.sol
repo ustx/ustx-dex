@@ -56,7 +56,6 @@ contract TBoost is Initializable{
     uint256 public currentEpoch;
 
     uint256 private _totalDeposits;
-    //uint256 private _totalWarp;
 
     uint256 private _totalRewards;
     uint256 private _paidRewards;
@@ -72,6 +71,7 @@ contract TBoost is Initializable{
     address public buybackAccount;
     uint256 public safetyMargin;
     uint256 public lpRatio;
+    uint256 public lastAPR;
 
     mapping(address => uint256) private _balances;
     mapping(address => uint256) private _lastUpdate;
@@ -132,7 +132,7 @@ contract TBoost is Initializable{
         farmTrxUsddContract = IFarm(0x1F446B0225e73BBBe18d83A91a35Ef2b372df6C8);            //USDD-TRX farm
         farmRewardsContract = IRewards(0xa72bEF5581ED09d848ca4380ede64192978b51b9);         //USDD rewards contract
         buybackAccount = address(0x59b172a17666224C6AeE90b58b20E686d47d9267);               //Buyback account
-        ustxDex = IDex(0xfe07944a55C4e0fF1159e36F3E0fAD2f5ADfc94f);                         //USTX DEX
+        ustxDex = IDex(0x82D4553256514373f0FACbF841e43D1080dbdE73);                         //USTX DEX
     }
 
 
@@ -283,8 +283,6 @@ contract TBoost is Initializable{
         _totalDeposits += msg.value;
         _balances[msg.sender] += msg.value;
 
-        //usddToken.transferFrom(msg.sender, address(this), amount);
-
         uint256 toSupply = msg.value*(100-lpRatio/2)/100;           //70% if lpRatio == 60
 
         jTrxToken.mint{value: toSupply}();                            //supply new liquidity to JL
@@ -332,8 +330,6 @@ contract TBoost is Initializable{
         require(margin-temp > trxSupply / safetyMargin, "INSUFFICIENT MARGIN ON JL");     //keep at least 20% margin after withdrawal
         jTrxToken.redeemUnderlying(temp);
 
-        //usddToken.transfer(msg.sender, temp);
-
         address payable rec = payable(msg.sender);
 		(bool sent, ) = rec.call{value: temp}("");
 		require(sent, "Failed to send TRX");
@@ -357,21 +353,21 @@ contract TBoost is Initializable{
 
     /* ========== RESTRICTED FUNCTIONS ========== */
 
-    function newEpochPreview(uint256 usddEpochRewards) public view returns(uint256, uint256, uint256, uint256){
+    function newEpochPreview(uint256 usddEpochRewards) public view returns(uint256, uint256, uint256, uint256, uint256){
         uint256 buybackRewards = usddEpochRewards*buybackRewardPerc /100;
 
-        uint256 total = _totalDeposits;
-
         uint256 userRewards = usddEpochRewards*userRewardPerc/100;          //user rewards in USDD
+
+        uint256 trxRate = getUsddValueInTrx(userRewards) * 52 * 100 * 1000/ _totalDeposits;
 
         userRewards = ustxDex.buyTokenInputPreview(userRewards/10**12);            //user rewards in USTX
 
         uint256 rate = 0;
-        if (_totalDeposits > 0) {
-            rate = userRewards * 1e18 / total;   //current epoch base rate in USTX per TRX deposited
-        }
 
-        return (rate, userRewards, buybackRewards, usddToken.balanceOf(address(this)));
+        rate = userRewards * 1e18 / _totalDeposits;   //current epoch base rate in USTX per TRX deposited
+
+
+        return (rate, trxRate, userRewards, buybackRewards, usddToken.balanceOf(address(this)));
     }
 
     function newEpoch(uint256 usddEpochRewards) public onlyAdmin {
@@ -380,9 +376,9 @@ contract TBoost is Initializable{
         uint256 buybackRewards = usddEpochRewards*buybackRewardPerc /100;
         require(usddToken.balanceOf(address(this))> usddEpochRewards, "Insufficient contract balance");
 
-        uint256 total = _totalDeposits;
-
         uint256 userRewards = usddEpochRewards*userRewardPerc/100;          //user rewards in USDD
+
+        lastAPR = getUsddValueInTrx(userRewards) * 52 * 100 * 1000/ _totalDeposits;
 
         userRewards = ustxDex.buyTokenInput(userRewards/10**12,1,1);            //user rewards in USTX
 
@@ -390,12 +386,11 @@ contract TBoost is Initializable{
             usddToken.transfer(buybackAccount, buybackRewards);
         }
 
-        if (_totalDeposits > 0) {
-            _rewardRates[currentEpoch] = userRewards * 1e18 / total;   //current epoch base rate in USTX per TRX deposited
-            _totalRewards += userRewards;
+        _rewardRates[currentEpoch] = userRewards * 1e18 / _totalDeposits;   //current epoch base rate in USTX per TRX deposited
+        _totalRewards += userRewards;
 
-            emit NewEpoch(currentEpoch, userRewards, _rewardRates[currentEpoch]);
-        }
+        emit NewEpoch(currentEpoch, userRewards, _rewardRates[currentEpoch]);
+
 
         currentEpoch++;
     }
@@ -567,16 +562,16 @@ contract TBoost is Initializable{
     //Farm
     //
 
-    function farmDeposit(uint256 amount) public onlyAdmin {
-        require(amount > 0, "AMOUNT_INVALID");
+    function farmDeposit(uint256 lpAmount) public onlyAdmin {
+        require(lpAmount > 0, "AMOUNT_INVALID");
 
-        farmTrxUsddContract.deposit(amount);
+        farmTrxUsddContract.deposit(lpAmount);
     }
 
-    function farmWithdraw(uint256 amount) public onlyAdmin {
-        require(amount > 0, "AMOUNT_INVALID");
+    function farmWithdraw(uint256 lpAmount) public onlyAdmin {
+        require(lpAmount > 0, "AMOUNT_INVALID");
 
-        farmTrxUsddContract.withdraw(amount);
+        farmTrxUsddContract.withdraw(lpAmount);
     }
 
     function farmClaim() public onlyAdmin {
@@ -624,11 +619,11 @@ contract TBoost is Initializable{
         return usddBalance * trxAmount / trxBalance;
     }
 
-    function getUsdtUsddValue(uint256 amount) public view returns(uint256){
+    function getUsdtUsddValue(uint256 usdtAmount) public view returns(uint256){
         uint256 value = 0;
 
-        if (amount >0) {
-            value = stableSwapContract.get_dy(1,0,amount);
+        if (usdtAmount >0) {
+            value = stableSwapContract.get_dy(1,0,usdtAmount);
         }
         return value;
     }
