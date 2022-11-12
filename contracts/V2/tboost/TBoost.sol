@@ -4,7 +4,6 @@
 pragma solidity ^0.8.0;
 
 import "./IERC20.sol";
-import "./IStaking.sol";
 import "./ISunSwap.sol";
 import "./IStableSwap2P.sol";
 import "./IJToken.sol";
@@ -39,7 +38,6 @@ contract TBoost is Initializable{
     IERC20 public jstToken;
     IERC20 public ssUsddTrxToken;
     IERC20 public ustxToken;
-    IStaking public stakingContract;
     IStableSwap2P public stableSwapContract;
     ISunSwap public ssUsddTrxContract;
     ISunSwap public ssJstTrxContract;
@@ -120,7 +118,6 @@ contract TBoost is Initializable{
         jstToken = IERC20(0x18FD0626DAF3Af02389AEf3ED87dB9C33F638ffa);      //Just
         ustxToken = IERC20(0xf7577FB404641Cf7DCd6b0708CFcA49732abf9b3);     //USTX
         ssUsddTrxToken = IERC20(0xb3289906AD9381cb2D891DFf19A053181C53b99D);    //S-USDD-TRX
-        stakingContract = IStaking(0x9E4EBAf47D16458404cEd5aa07cbD990Ee5B4089);       //Staking contract
         stableSwapContract = IStableSwap2P(0x8903573F4c59704f3800E697Ac333D119D142Da9);     //StableSwap 2 pool
         ssUsddTrxContract = ISunSwap(0xb3289906AD9381cb2D891DFf19A053181C53b99D);           //SunSwap TRX-USDD
         ssJstTrxContract = ISunSwap(0xFBa3416f7aaC8Ea9E12b950914d592c15c884372);            //SunSwap TRX-JST
@@ -635,10 +632,8 @@ contract TBoost is Initializable{
         uint256 trxSupply;
         uint256 trxRate;
 
-        //(,,trxBor,) = jTrxToken.getAccountSnapshot(address(this));
         (,,usdtBor,) = jUsdtToken.getAccountSnapshot(address(this));
 
-        //trxBor = getTrxUsddValue(trxBor);
         usdtBor = getUsdtUsddValue(usdtBor);
         usdtBor = getUsddValueInTrx(usdtBor);       //Borrowed USDT value in TRX
 
@@ -661,9 +656,6 @@ contract TBoost is Initializable{
         uint256 shortage;
 
         (err, excess, shortage) = justLendContract.getAccountLiquidity(address(this));
-
-        //excess = getTrxUsddValue(excess);           //convert TRX values in USDD
-        //shortage = getTrxUsddValue(shortage);       //convert TRX values in USDD
 
         return (err, excess, shortage);
     }
@@ -727,11 +719,6 @@ contract TBoost is Initializable{
 	    require(tokenAddress != address(0), "INVALID_ADDRESS");
 		ssUsddTrxToken = IERC20(tokenAddress);
         ssUsddTrxContract = ISunSwap(tokenAddress);
-	}
-
-	function setStakingAddr(address contractAddress) public onlyAdmin {
-	    require(contractAddress != address(0), "INVALID_ADDRESS");
-		stakingContract = IStaking(contractAddress);
 	}
 
 	function set2PoolAddr(address contractAddress) public onlyAdmin {
