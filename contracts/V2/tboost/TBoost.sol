@@ -111,7 +111,7 @@ contract TBoost is Initializable{
         userRewardPerc = 75;           //user share of the rewards
         buybackRewardPerc = 20;        //buyback share of the rewards
         safetyMargin = 20;              //20% margine required to withdraw
-        lpRatio = 60;              //60% goes  to LP
+        lpRatio = 55;              //55% goes  to LP
         usddToken = IERC20(0x94F24E992cA04B49C6f2a2753076Ef8938eD4daa);     //USDD
         usdtToken = IERC20(0xa614f803B6FD780986A42c78Ec9c7f77e6DeD13C);     //USDT
         sunToken = IERC20(0xb4A428ab7092c2f1395f376cE297033B3bB446C1);      //Sun
@@ -833,4 +833,10 @@ contract TBoost is Initializable{
         _lastUpdate[account] = currentEpoch;
         _;
     }
+
+    // V1.1 fixed missing setLpRatio function
+
+    function setLpRatio(uint256 lpPerc) public onlyAdmin {
+        lpRatio = lpPerc;
+	}
 }
