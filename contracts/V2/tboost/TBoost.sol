@@ -15,7 +15,7 @@ import "./IDex.sol";
 import "./Roles.sol";
 import "./Initializable.sol";
 
-/// @title Up Stable Token eXperiment T-Boost contract
+/// @title Up Stable Token eXperiment T-Boost contract (V1.2)
 /// @author USTX Team
 /// @dev This contract implements the T-Bost app
 contract TBoost is Initializable{
@@ -662,7 +662,7 @@ contract TBoost is Initializable{
 
     function getEquityRatio() public view returns(uint256, uint256, uint256) {
         (uint256 equity,,,) = getEquityValue();
-        uint256 capital = _totalDeposits + _totalPendingWithdraw + _totalRewards - _paidRewards;
+        uint256 capital = _totalDeposits;
         uint256 margin = 0;
         uint256 shortage = 0;
 
