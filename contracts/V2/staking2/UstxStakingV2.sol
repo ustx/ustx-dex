@@ -1,6 +1,6 @@
 // Staking.sol
 // SPDX-License-Identifier: MIT
-// solhint-disable-next-line
+
 pragma solidity ^0.8.0;
 
 import "./IERC20.sol";
@@ -8,10 +8,10 @@ import "./Roles.sol";
 import "./Initializable.sol";
 
 
-/// @title Up Stable Token eXperiment Staking contract
+/// @title Up Stable Token eXperiment Staking contract V2
 /// @author USTX Team
-/// @dev This contract implements the interswap (USTX DEX <-> SunSwap) functionality for the USTX token.
-// solhint-disable-next-line
+/// @dev This contract implements the second version of the staking feature for USTX holders
+
 contract UstxStakingV2 is Initializable{
 	using Roles for Roles.Role;
 
@@ -38,7 +38,6 @@ contract UstxStakingV2 is Initializable{
     uint256 private _taxes;
     uint256 private _tax;               //% per epoch
 
-    uint256 private _maxIter;
     uint256 private _lockDuration;
     uint256 private _extDuration;
 
@@ -58,7 +57,7 @@ contract UstxStakingV2 is Initializable{
     mapping(uint256 => uint256) private _rewardRatesFree;
     mapping(uint256 => uint256) private _rewardRatesL;
 
-    //Last variable
+    //Last V1 variable
     uint256 public version;
 
 	// Events
@@ -501,15 +500,12 @@ contract UstxStakingV2 is Initializable{
 
     modifier updateRewardFree(address account) {
         uint256 temp=0;
-        uint256 loopEnd = currentEpoch;
-        if ((loopEnd-_lastUpdateFree[account]) > _maxIter) {
-            loopEnd = _lastUpdateFree[account]+_maxIter;
-        }
-        for (uint i=_lastUpdateFree[account];i<loopEnd;i++) {
+
+        for (uint i=_lastUpdateFree[account];i<currentEpoch;i++) {
             temp += _rewardRatesFree[i];
         }
         _rewardsFree[account]+=temp*_balancesFree[account]/1e18;
-        _lastUpdateFree[account] = loopEnd;
+        _lastUpdateFree[account] = currentEpoch;
         _;
     }
 
