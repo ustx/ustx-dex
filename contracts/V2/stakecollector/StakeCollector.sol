@@ -1,4 +1,4 @@
-// Staking.sol
+// StakeCollector.sol
 // SPDX-License-Identifier: MIT
 // solhint-disable-next-line
 pragma solidity ^0.8.0;
@@ -10,12 +10,16 @@ interface IStakingV1 {
     function balanceOf(address account) external view returns (uint256, uint256, uint256, uint256, uint256);
 
     function totalStaked() external view returns (uint256, uint256, uint256, uint256, uint256);
+
+    function earned(address account) external view returns (uint256, uint256, uint256, uint256, uint256);
 }
 
 interface IStakingV2 {
     function balanceOf(address account) external view returns (uint256, uint256);
 
     function totalStaked() external view returns (uint256, uint256);
+
+    function earned(address account) external view returns (uint256, uint256);
 }
 
 /// @title Up Stable Token eXperiment Staking contract
@@ -78,37 +82,23 @@ contract StakeCollector {
         emit AdminRemoved(account);
     }
 
-    function _totalStaked() public view returns (uint256) {
-        uint256 totalS1 = 0;
-        uint256 totalS2 = 0;
-
-        uint256 S0;
-        uint256 S1;
-        uint256 S2;
-        uint256 S3;
-        uint256 S4;
-
-        if (address(stakingContractV1) != address(0)) {
-            (S0, S1, S2, S3, S4) = stakingContractV1.totalStaked();
-            totalS1 = S0+S1+S2+S3+S4;
-        }
-
-        if (address(stakingContractV2) != address(0)) {
-            (S0, S1) = stakingContractV2.totalStaked();
-            totalS2 = S0+S1;
-        }
-        return (totalS1+totalS2);
-    }
-
-    function balanceOf(address account) public view returns (uint256, uint256, uint256,uint256, uint256){
+    function totalStaked() public view returns (uint256 S0, uint256 S1, uint256 S2, uint256 S3, uint256 S4) {
         uint256 S2_0 = 0;
         uint256 S2_2 = 0;
 
-        uint256 S0;
-        uint256 S1;
-        uint256 S2;
-        uint256 S3;
-        uint256 S4;
+        if (address(stakingContractV1) != address(0)) {
+            (S0, S1, S2, S3, S4) = stakingContractV1.totalStaked();
+        }
+
+        if (address(stakingContractV2) != address(0)) {
+            (S2_0, S2_2) = stakingContractV2.totalStaked();
+        }
+        return (S0+S2_0,S1,S2+S2_2,S3,S4);
+    }
+
+    function balanceOf(address account) public view returns (uint256 S0, uint256 S1, uint256 S2, uint256 S3, uint256 S4){
+        uint256 S2_0 = 0;
+        uint256 S2_2 = 0;
 
         if (address(stakingContractV1) != address(0)) {
             (S0, S1, S2, S3, S4) = stakingContractV1.balanceOf(account);
@@ -118,6 +108,20 @@ contract StakeCollector {
             (S2_0, S2_2) = stakingContractV2.balanceOf(account);
         }
         return (S0+S2_0,S1,S2+S2_2,S3,S4);
+    }
+
+    function earned(address account) external view returns (uint256 E0, uint256 E1, uint256 E2, uint256 E3, uint256 E4) {
+      uint256 E2_0 = 0;
+      uint256 E2_2 = 0;
+
+      if (address(stakingContractV1) != address(0)) {
+          (E0, E1, E2, E3, E4) = stakingContractV1.earned(account);
+      }
+
+      if (address(stakingContractV2) != address(0)) {
+          (E2_0, E2_2) = stakingContractV2.earned(account);
+      }
+      return (E0+E2_0,E1,E2+E2_2,E3,E4);
     }
 
     function setStakingV1Addr(address contractAddress) public onlyAdmin {
