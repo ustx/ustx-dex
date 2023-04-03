@@ -43,9 +43,6 @@ contract StakeCollector {
         _numAdmins=0;
 		_addAdmin(msg.sender);		//default admin
 		_minAdmins = 1;					//at least 2 admins in charge
-
-		stakingContractV1 = IStakingV1(address(0));
-		stakingContractV2 = IStakingV2(address(0));
     }
 
 	/***********************************|
