@@ -4,6 +4,7 @@ pragma solidity ^0.8.5;
 
 import "./Roles.sol";
 import "./IERC20.sol";
+import "./IBand.sol";
 
 contract FairLuckPad {
     using Roles for Roles.Role;
@@ -11,12 +12,15 @@ contract FairLuckPad {
     bool private _notEntered;			//reentrancyguard state
 	Roles.Role private _administrators;
 
+	IBand public bandRef;
+
     address public launchToken;         //launch token
     address public treasury;            //treasury address
     uint256 public softCap;             //minimum BTT to be raised for a valid launch
     uint256 public totalRaised;         //total BTT raised
     uint256 public totalRaisedLuck;     //total BTT raised factorizing luck
-    uint256 public treasuryPerc;        //treasury percentage of raised money (10)
+    uint256 public treasuryPerc;        //treasury percentage of tokens (10)
+    uint256 public treasuryBttPerc;     //treasury percentage of raised BTT (40)
     uint256 public totalRedeem;         //total redeemed
     uint256 public startTime;           //launch start
     uint256 public duration;            //total duration in seconds (2*86400)
@@ -29,6 +33,8 @@ contract FairLuckPad {
     uint256 public treasuryShare;       //tokens allocated to treasury (10% of total)
     uint256 public lpShare;             //tokens allocated to LPs
     uint256 public launchShare;         //tokens aloocated to users
+    uint256 public minLuck;             //minimum luck factor
+    uint256 public maxLuck;             //maximum luck factor
 
     event SaleEnabled(bool enabled, uint256 time);
     event RedeemEnabled(bool enabled, uint256 time);
@@ -53,9 +59,11 @@ contract FairLuckPad {
         maxInvest = 2000000000 * 10**18;         //2B BTT
         redeemEnabled = false;
         saleEnabled = false;
-        treasuryPerc = 25;          //25%
+        treasuryPerc = 10;          //10% of tokens
+        treasuryBttPerc = 40;           //40% of BTT
         minLuck = 100;            //base luck: 100%
         maxLuck = 200;            //max luck: 200%
+        bandRef = IBand(0x8c064bCf7C0DA3B3b090BAbFE8f3323534D84d68);
     }
 
 	/***********************************|
@@ -118,6 +126,14 @@ contract FairLuckPad {
         return (totalRaised * 100 / softCap);
     }
 
+    function getLuck(address user) public view returns(uint256){
+        IBand.ReferenceData memory data;
+        data = bandRef.getReferenceData("BTC", "USD");
+
+        uint256 temp = (uint256)(keccak256(abi.encodePacked(data.rate, user, block.timestamp)));
+        return temp % 100 + 100;        //luck factor 100-200
+    }
+
     // invest
     function invest() public payable nonReentrant{
         require(block.timestamp >= startTime, "not started yet");
@@ -135,10 +151,11 @@ contract FairLuckPad {
         if (investor.amountInvested == 0){
             numInvested += 1;
         }
-        investor.amountInvested += msg.value;
-        investor.luckFactor = userLuck;     //fix for multiple additions
 
-        totalRaisedLuck += msg.value * userLuck / 100;s
+        investor.luckFactor = (userLuck*msg.value + investor.luckFactor*investor.amountInvested)/(investor.amountInvested + msg.value);
+        investor.amountInvested += msg.value;
+
+        totalRaisedLuck += msg.value * userLuck;
 
         emit Invest(msg.sender, msg.value);
     }
@@ -179,6 +196,11 @@ contract FairLuckPad {
         treasury = _treasury;
     }
 
+     // set the oracle address
+    function setOracleAddress(IBand _band) public onlyAdmin {
+        bandRef = _band;
+    }
+
     // withdraw in case some tokens were not redeemed
     function withdrawLaunchtoken(uint256 amount) public onlyAdmin {
         require(launchToken != address(0), "launch token not set");
@@ -202,8 +224,8 @@ contract FairLuckPad {
         treasuryShare += team;                              //incremental
         amount -= team;
 
-        lp = amount * (100 - treasuryPerc) / (200 - treasuryPerc);   //launch share
-        launch = amount - lp;                           //LP share
+        lp = amount * (100 - treasuryBttPerc) / (200 - treasuryBttPerc);   //LP share
+        launch = amount - lp;                           //Launch share
 
         launchShare += launch;                          //incremental
         lpShare += lp;                                  //incremental
@@ -230,7 +252,7 @@ contract FairLuckPad {
         require(launchToken != address(0), "launch token not set");
         require(getCap()>=100, "launch failed, BTT returns to users");
         require(block.timestamp > startTime + duration, "sale not ended yet");
-        uint256 amount=totalRaised * treasuryPerc / 100;
+        uint256 amount=totalRaised * treasuryBttPerc / 100;
 
         address payable rec = payable(treasury);
 		(bool sent, ) = rec.call{value: amount}("");
@@ -270,12 +292,12 @@ contract FairLuckPad {
         require(block.timestamp > startTime+duration, "sale not ended yet");
         require(setup, "liquidity not setup");
         redeemEnabled = true;
-        reedemRatio = launchShare * 10**9 / totalRaisedLuck;    //check
+        reedemRatio = launchShare * 10**9 * 100 / totalRaisedLuck;    //check
         emit RedeemEnabled(true, block.timestamp);
     }
 
     function previewRedeem() public view returns(uint256 ratio){
-        ratio = launchShare * 10**9 / totalRaisedLuck;
+        ratio = launchShare * 10**9 * 100 / totalRaisedLuck;
         return ratio;
     }
 
@@ -310,12 +332,13 @@ contract FairLuckPad {
         return(timeToStart, timeToEnd, startTime, startTime + duration);
     }
 
-    function getUserInfo(address user) public view returns(uint256 amount, bool claimed, uint256 share, uint256 tokens){
+    function getUserInfo(address user) public view returns(uint256 amount, bool claimed, uint256 share, uint256 tokens, uint256 luck){
         if (totalRaised > 0) {
-            share = investors[user].amountInvested * 1000 * investors[user].luckFactor / totalRaisedLuck / 100;
-            tokens = investors[user].amountInvested * launchShare * investors[user].luckFactor / totalRaisedLuck / 100;
+            share = investors[user].amountInvested * 1000 * investors[user].luckFactor / totalRaisedLuck;
+            tokens = investors[user].amountInvested * launchShare * investors[user].luckFactor / totalRaisedLuck;
+            luck = investors[user].luckFactor;
         }
 
-        return(investors[user].amountInvested, investors[user].claimed, share, tokens);
+        return(investors[user].amountInvested, investors[user].claimed, share, tokens, luck);
     }
 }
