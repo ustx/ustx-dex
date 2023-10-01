@@ -172,7 +172,7 @@ contract FairLuckPad {
     function redeem() public nonReentrant {
         require(redeemEnabled, "redeem not enabled");
         InvestorInfo storage investor = investors[msg.sender];
-        uint256 redeemAmount = investor.amountInvested * reedemRatio / 10**9;
+        uint256 redeemAmount = investor.amountInvested * investor.luckFactor * reedemRatio / 10**9 / 100;
         require(redeemAmount > 0, "nothing to claim");
         require(!investor.claimed, "already claimed");
         if (getCap()>=100) {                        //launch success, send tokens
