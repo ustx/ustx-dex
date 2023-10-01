@@ -50,13 +50,14 @@ contract FairLuckPad {
     }
 
     mapping(address => InvestorInfo) public investors;
+    mapping(address => uint256) public _prevLuck;          //previous luck factor
 
     constructor() {
         _notEntered = true;
 		_addAdmin(msg.sender);		//default admin
         duration = 24*3600;         //1 day
         softCap = 5000000000 * 10**18;           //5B BTT
-        maxInvest = 2000000000 * 10**18;         //2B BTT
+        maxInvest = 1000000000 * 10**18;         //1B BTT
         redeemEnabled = false;
         saleEnabled = false;
         treasuryPerc = 10;          //10% of tokens
@@ -126,12 +127,18 @@ contract FairLuckPad {
         return (totalRaised * 100 / softCap);
     }
 
-    function getLuck(address user) public view returns(uint256){
+    function getLuck(address user) public view returns(uint256 luck){
         IBand.ReferenceData memory data;
         data = bandRef.getReferenceData("BTC", "USD");
 
         uint256 temp = (uint256)(keccak256(abi.encodePacked(data.rate, user, block.timestamp)));
-        return temp % 100 + 100;        //luck factor 100-200
+        luck = temp % 100 + 100;        //luck factor 100-200
+        if (luck == _prevLuck[user]){
+            data = bandRef.getReferenceData("ETH", "USD");
+            temp = (uint256)(keccak256(abi.encodePacked(data.rate, user, block.timestamp)));
+            luck = temp % 100 + 100;        //luck factor 100-200
+        }
+        return luck;
     }
 
     // invest
@@ -147,6 +154,7 @@ contract FairLuckPad {
         totalRaised += msg.value;
 
         uint256 userLuck = getLuck(msg.sender);   //luck function tbd
+        _prevLuck[msg.sender] = userLuck;
 
         if (investor.amountInvested == 0){
             numInvested += 1;
@@ -240,7 +248,7 @@ contract FairLuckPad {
 
         amount -= team;
 
-        lp = amount * (100 - treasuryPerc) / (200 - treasuryPerc);   //launch share
+        lp = amount * (100 - treasuryBttPerc) / (200 - treasuryBttPerc);   //launch share
         launch = amount - lp;                           //LP share
 
         return(team, lp, launch);
