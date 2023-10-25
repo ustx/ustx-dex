@@ -15,7 +15,7 @@ import "./IBand.sol";
 /// @author USTX Team
 /// @dev This contract implements the WML Luck Dispenser
 
-contract Ergon is Initializable, IERC20, IEvents{
+contract Dispense is Initializable, IEvents{
 	using Roles for Roles.Role;
 
 	/***********************************|
@@ -33,12 +33,9 @@ contract Ergon is Initializable, IERC20, IEvents{
     IERC20 public wbttToken;
     IERC20 public wmlToken;
 
-    uint256 public currentEpoch;
-
     uint256 public jackpotB;        //bronze
     uint256 public jackpotS;        //siver
     uint256 public jackpotG;        //gold
-    uint256 public lackpotI;        //instawin
 
     uint256 private _minBetB;                  //minimum bet
     uint256 private _minBetS;                  //minimum bet
@@ -48,7 +45,7 @@ contract Ergon is Initializable, IERC20, IEvents{
     uint256 private _winProbB;                  //winning probability for Bronze
     uint256 private _winProbS;                  //winning probability for Silver
     uint256 private _winProbG;                  //winning probability for Gold
-    uint256 private _winPercI;                  //winding percentage for instawin
+    uint256 private _rewardPerc;                  //reward percentage for instawin
     uint256 private _jackpotRate;    //% of jackpot to distribute to winners
 
     uint256 private _buybackPerc;               //% buyback
@@ -58,15 +55,13 @@ contract Ergon is Initializable, IERC20, IEvents{
     uint256 public dispenseMaxAmount;       //max dispense amount per account
     uint256 public dispenseEnable;
 
-    uint256 public _randomSeed;         //random seed from Oracle
-
     uint256 public buybackTotal;
+    uint256 public jackpotWonTotal;
+
+    mapping(address => uint256) private _prevSeed;          //previous seed factor
 
     //Last V1 variable
     uint256 public version;
-
-
-
 
 	/**
 	* @dev initializer
@@ -78,9 +73,9 @@ contract Ergon is Initializable, IERC20, IEvents{
         _numAdmins = 0;
 		_addAdmin(msg.sender);		//default admin
 
-        currentEpoch = 0;
         wbttToken = IERC20(0x23181F21DEa5936e24163FFABa4Ea3B316B57f3C);             //main
         JMRouter = IUniswapV2Router02(0x0C759476B4E74614D30e1F667455A4e1f2Da8ACb);  //main
+        wmlToken = IERC20(0x876AfC0f992cd7f6ADFCFB84c6e8056e57AEc8B7);      //testnet
 
         bandRef = IBand(0x8c064bCf7C0DA3B3b090BAbFE8f3323534D84d68);        //testnet
 
@@ -89,17 +84,17 @@ contract Ergon is Initializable, IERC20, IEvents{
         _minBetG = 5000000 * 10**18;        // 5M BTT -> 2$
         _maxBet = 25000000 * 10**18;        // 25M BTT -> 10$
 
-        _winProbB = 10;                     //1 in 10 wins
-        _winProbS = 100;                     //1 in 100 wins
-        _winProbG = 1000;                     //1 in 1000 wins
-        _winPercI = 100;                    //100% return rate on instawin
-        _jackpotRate = 70;                  //30% of jackpot remains in the pot after a win
+        _winProbB = 5;                     //1 in 10 wins
+        _winProbS = 101;                     //1 in 100 wins
+        _winProbG = 997;                     //1 in 1000 wins
+        _rewardPerc = 400;                    //400% max win of buyback
 
+        _jackpotRate = 70;                  //30% of jackpot remains in the pot after a win
         _buybackPerc = 50;                      //50% of bets to buyback WML from DEX
 
         dispenseRate = 100;                  //0.0001 of tokens to be distributed every shot
         dispenseAccounts = 100;             //100 accounts every shot
-        dispenseMaxAmount = 1000;           //max 1000 token per account
+        dispenseMaxAmount = 1000 * 10**18;           //max 1000 token per account
         dispenseEnable = 1;
     }
 
@@ -168,43 +163,134 @@ contract Ergon is Initializable, IERC20, IEvents{
         return (_minBetB, _minBetS, _minBetG, _maxBet);
     }
 
-    /* ========== DEPOSIT FUNCTIONS ========== */
-
-    function depositTrx() public payable nonReentrant {
-        require(msg.value > 0, "Cannot deposit 0");
-        require(_depositEnable > 0, "Deposit non allowed");
-
-        uint256 ergToMint = _trxToErg(msg.value);
-        _mint(msg.sender, ergToMint);
-
-        uint256 toFreeze = freezableTrx();
-        freezebalancev2(toFreeze,1);
-
-        emit Deposit(msg.sender, msg.value);
+    function getJackpots() public view returns (uint256, uint256, uint256) {
+        return (jackpotB, jackpotS, jackpotG);
     }
 
-    /* ========== HOUSEKEEPING FUNCTIONS ========== */
+    function getWinProb() public view returns (uint256, uint256, uint256) {
+        return (_winProbB, _winProbS, _winProbG);
+    }
 
-    /* ========== REWARDS FUNCTIONS ========== */
-    function claimJackpotReward() public nonReentrant {
-        require(_lenderLastJackpotEpoch[msg.sender] < currentEpoch, "Jackpot reward already claimed");
-        uint256 boost = _userStake(msg.sender) * _jackpotBoostRatio / balanceOf(msg.sender);
-        if (boost > 1000) {
-            boost = 1000;
+    /* ========== DISPENSE FUNCTIONS ========== */
+
+    function getSeed(address user) public view returns(uint256 seed){
+        IBand.ReferenceData memory data;
+        data = bandRef.getReferenceData("BTC", "USD");
+
+        seed = (uint256)(keccak256(abi.encodePacked(data.rate, user, block.timestamp)));
+        if (seed == _prevSeed[user]){
+            data = bandRef.getReferenceData("ETH", "USD");
+            seed = (uint256)(keccak256(abi.encodePacked(data.rate, user, block.timestamp)));
         }
-        uint256 reward = balanceOf(msg.sender) * boost * _jackpotRemaining / (_totalSupply - _jackpotErgClaimed)/ 1000;
-        if (reward > 0) {
-            address payable rec = payable(msg.sender);
-    		(bool sent, ) = rec.call{value: reward}("");
-    		require(sent, "Failed to send TRX");
-            _lenderLastJackpotEpoch[msg.sender]=currentEpoch;
-            _jackpotRemaining -= reward;
-            _jackpotErgClaimed += balanceOf(msg.sender);
+        require(seed != _prevSeed[user],"randomness too low");
+        return seed;
+    }
+
+    function buybackWml(uint256 bttAmount) internal pure returns(uint256 wmlAmount){
+        uint256 wmlPrice = 8888;
+        wmlAmount = bttAmount / wmlPrice;
+        return(wmlAmount);
+    }
+
+    function dispense() public payable nonReentrant returns(uint256 amount, uint256 reward, uint256 jackpot){
+        require(msg.value >= _minBetB, "Buyback too low");
+        require(msg.value <= _maxBet, "Buyback too big");
+
+        uint256 seed = getSeed(msg.sender);
+        _prevSeed[msg.sender] = seed;
+
+        uint256 bet = msg.value;
+        uint256 buybackBtt = msg.value * _buybackPerc / 100;
+        buybackTotal += buybackBtt;
+        bet -= buybackBtt;
+        jackpotB += bet / 3;
+        bet -= bet / 3;
+        jackpotS += bet / 2;
+        bet -= bet / 2;
+        jackpotG += bet;
+
+        uint256 wmlBought = buybackWml(buybackBtt);
+
+        reward = (seed % _rewardPerc) * wmlBought / 100;
+        wmlToken.transfer(msg.sender, reward);
+
+        amount = _distribute(seed);
+
+        jackpot = _checkJackpot(seed, msg.value);
+        jackpotWonTotal += jackpot;
+
+        emit Dispense(msg.sender, amount, reward);
+    }
+
+    function _distribute(uint256 seed) internal returns(uint256 amount){
+        require(dispenseEnable > 0, "Dispense non allowed");
+        amount = wmlToken.balanceOf(address(this)) * dispenseRate / 1000000;
+        uint256 cap = dispenseAccounts * dispenseMaxAmount;
+        if (amount > cap) {
+            amount = cap;
+        }
+
+        uint256 perAccount = amount / dispenseAccounts;
+        amount = 0;
+        address dest;
+        uint256 value;
+        for (uint256 i; i < dispenseAccounts; i++) {
+            dest = address(uint160(uint256(keccak256(abi.encodePacked(seed,i)))));
+            value = uint256(keccak256(abi.encodePacked(seed,i))) % perAccount;
+            wmlToken.transfer(dest, value);
+            amount += value;
         }
     }
 
+    function _checkJackpot(uint256 seed, uint256 value) internal returns(uint256 win){
+        if (value >= _minBetG) {
+            win = _checkGold(seed);
+        }
+        if (value >= _minBetS) {
+            win = _checkSilver(seed);
+        }
+        win = _checkBronze(seed);
+        return(win);
+    }
 
-    /* ========== RESTRICTED FUNCTIONS ========== */
+    function testBronze(uint256 seed) public view returns(uint256 win){
+        if ((seed % _winProbB) == 0) {
+            win = jackpotB * _jackpotRate / 100;
+        }
+        return(win);
+    }
+
+    function _checkBronze(uint256 seed) internal returns(uint256 win){
+        if ((seed % _winProbB) == 0) {
+            win = jackpotB * _jackpotRate / 100;
+            jackpotB -= win;
+            _sendBtt(win, msg.sender);
+            emit NewJackpot(msg.sender,0,win);
+        }
+        return(win);
+    }
+
+    function _checkSilver(uint256 seed) internal returns(uint256 win){
+        if ((seed % _winProbS) == 0) {
+            win = jackpotS * _jackpotRate / 100;
+            jackpotS -= win;
+            _sendBtt(win, msg.sender);
+            emit NewJackpot(msg.sender,1,win);
+        }
+        return(win);
+    }
+
+    function _checkGold(uint256 seed) internal returns(uint256 win){
+        if ((seed % _winProbG) == 0) {
+            win = jackpotG * _jackpotRate / 100;
+            jackpotG -= win;
+            _sendBtt(win, msg.sender);
+            emit NewJackpot(msg.sender,2,win);
+        }
+        return(win);
+    }
+
+     /* ========== RESTRICTED FUNCTIONS ========== */
     function jackpotSetup(uint256 percB, uint256 percS, uint256 percG) public payable onlyAdmin {
         jackpotB += msg.value * percB / 100;
         jackpotS += msg.value * percS / 100;
@@ -221,6 +307,11 @@ contract Ergon is Initializable, IERC20, IEvents{
 		wmlToken = IERC20(wmlAddress);
 	}
 
+	function setBandAddr(address bandAddress) public onlyAdmin {
+	    require(bandAddress != address(0), "INVALID_ADDRESS");
+		bandRef = IBand(bandAddress);
+	}
+
 	function setBetLimits(uint256 minB, uint256 minS, uint256 minG, uint256 max) public onlyAdmin {
 	    require(max > minG && minG > minS && minS > minB, "Check values");
 
@@ -230,14 +321,34 @@ contract Ergon is Initializable, IERC20, IEvents{
         _maxBet = max;
 	}
 
+	function setProb(uint256 probB, uint256 probS, uint256 probG, uint256 rewardPerc) public onlyAdmin {
+	    require(probG > probS && probS > probB && rewardPerc >0, "Check values");
+
+	    _winProbB = probB;
+	    _winProbS = probS;
+        _winProbG = probG;
+        _rewardPerc = rewardPerc;
+	}
+
+    function setPerc(uint256 jackpotRate, uint256 buybackPerc) public onlyAdmin {
+        require(jackpotRate > 50 && buybackPerc >10, "Check values");
+
+	    _jackpotRate = jackpotRate;
+        _buybackPerc = buybackPerc;
+	}
+
 	function setDispenseEnable(uint256 enable) public onlyAdmin {
 	    dispenseEnable = enable;
 	}
 
-    /**
-	* @dev Function to withdraw lost tokens balance (only admin)
-	* @param tokenAddr Token address
-	*/
+    function setDispensePar(uint256 rate, uint256 accounts, uint256 maxAmount) public onlyAdmin {
+        require(rate < 1000 && accounts < 1000 && maxAmount < 10000 * 10**18, "Check values");
+
+	    dispenseRate = rate;
+        dispenseAccounts = accounts;
+        dispenseMaxAmount = maxAmount;
+	}
+
 	function withdrawToken(address tokenAddr) public onlyAdmin returns(uint256) {
 	    require(tokenAddr != address(0), "INVALID_ADDRESS");
 
@@ -250,13 +361,20 @@ contract Ergon is Initializable, IERC20, IEvents{
 		return balance;
 	}
 
-    function withdrawFees() public onlyAdmin returns(uint256 fees){
-        fees = _feesAccumulating;
-		address payable rec = payable(msg.sender);
-		(bool sent, ) = rec.call{value: fees}("");
-		require(sent, "Failed to send BTT");
-		_feesAccumulating = 0;
+    function withdraw(uint256 amount) public onlyAdmin {
+        address payable rec = payable(msg.sender);
 
-		return(fees);
+        if (amount == 0) {
+            amount = address(this).balance;
+        }
+		(bool sent, ) = rec.call{value: amount}("");
+		require(sent, "Failed to send BTT");
+    }
+
+    function _sendBtt(uint256 amount, address dest) internal {
+        address payable rec = payable(dest);
+
+		(bool sent, ) = rec.call{value: amount}("");
+		require(sent, "Failed to send BTT");
     }
 }
