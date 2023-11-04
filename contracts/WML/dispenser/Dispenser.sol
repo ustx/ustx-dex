@@ -85,8 +85,8 @@ contract Dispense is Initializable, IEvents{
         _maxBet = 25000000 * 10**18;        // 25M BTT -> 10$
 
         _winProbB = 5;                     //1 in 10 wins
-        _winProbS = 101;                     //1 in 100 wins
-        _winProbG = 997;                     //1 in 1000 wins
+        _winProbS = 23;                     //1 in 100 wins
+        _winProbG = 97;                     //1 in 1000 wins
         _rewardPerc = 400;                    //400% max win of buyback
 
         _jackpotRate = 70;                  //30% of jackpot remains in the pot after a win
@@ -199,17 +199,7 @@ contract Dispense is Initializable, IEvents{
         uint256 seed = getSeed(msg.sender);
         _prevSeed[msg.sender] = seed;
 
-        uint256 bet = msg.value;
-        uint256 buybackBtt = msg.value * _buybackPerc / 100;
-        buybackTotal += buybackBtt;
-        bet -= buybackBtt;
-        jackpotB += bet / 3;
-        bet -= bet / 3;
-        jackpotS += bet / 2;
-        bet -= bet / 2;
-        jackpotG += bet;
-
-        uint256 wmlBought = buybackWml(buybackBtt);
+        uint256 wmlBought = _incrementJackpot(msg.value);
 
         reward = (seed % _rewardPerc) * wmlBought / 100;
         wmlToken.transfer(msg.sender, reward);
@@ -220,6 +210,41 @@ contract Dispense is Initializable, IEvents{
         jackpotWonTotal += jackpot;
 
         emit Dispense(msg.sender, amount, reward);
+    }
+
+    function _incrementJackpot(uint256 betAmount) internal returns(uint256 wmlBought){
+        uint256 buybackBtt = betAmount * _buybackPerc / 100;
+        buybackTotal += buybackBtt;
+        wmlBought = buybackWml(buybackBtt);
+        uint256 bet = betAmount - buybackBtt;
+        uint256 temp;
+
+        if (betAmount<_minBetS) {           //bronze bet
+            temp = bet / 2;              //50% to bronze
+            jackpotB += temp;
+            bet -= temp;
+            temp = bet / 2;             //25% to silver
+            jackpotS += temp;
+            bet -= temp;
+        } else if ( betAmount >= _minBetG) {        //gold bet
+            temp = bet * 10 / 100;              //10% to bronze
+            jackpotB += temp;
+            bet -= temp;
+            temp = bet * 30 / 90;             //30% to silver
+            jackpotS += temp;
+            bet -= temp;
+        } else {                            //silver bet
+            temp = bet * 20 / 100;              //20% to bronze
+            jackpotB += temp;
+            bet -= temp;
+            temp = bet / 2;             //40% to silver
+            jackpotS += temp;
+            bet -= temp;
+        }
+
+        jackpotG += bet;           //rest to gold
+
+        return(wmlBought);
     }
 
     function _distribute(uint256 seed) internal returns(uint256 amount){
@@ -240,6 +265,8 @@ contract Dispense is Initializable, IEvents{
             wmlToken.transfer(dest, value);
             amount += value;
         }
+
+        return(amount);
     }
 
     function _checkJackpot(uint256 seed, uint256 value) internal returns(uint256 win){
