@@ -84,9 +84,9 @@ contract Dispense is Initializable, IEvents{
         _minBetG = 5000000 * 10**18;        // 5M BTT -> 2$
         _maxBet = 25000000 * 10**18;        // 25M BTT -> 10$
 
-        _winProbB = 5;                     //1 in 10 wins
-        _winProbS = 23;                     //1 in 100 wins
-        _winProbG = 97;                     //1 in 1000 wins
+        _winProbB = 7;                     //1 in 7 wins
+        _winProbS = 23;                     //1 in 23 wins
+        _winProbG = 97;                     //1 in 97 wins
         _rewardPerc = 400;                    //400% max win of buyback
 
         _jackpotRate = 70;                  //30% of jackpot remains in the pot after a win
@@ -169,6 +169,21 @@ contract Dispense is Initializable, IEvents{
 
     function getWinProb() public view returns (uint256, uint256, uint256) {
         return (_winProbB, _winProbS, _winProbG);
+    }
+
+    function getPriceMcap() public view returns (uint256 price, uint256 mcap) {
+        uint256 circulating = wmlToken.totalSupply() - wmlToken.balanceOf(address(this));
+
+        IBand.ReferenceData memory data;
+        data = bandRef.getReferenceData("BTT", "USD");
+
+        price =  getWmlPrice() * data.rate / 10**18;
+
+        mcap = circulating * price / 10**18;
+    }
+
+    function getWmlPrice() public pure returns (uint256 price) {
+        price = 8888 * 10**18;
     }
 
     /* ========== DISPENSE FUNCTIONS ========== */
