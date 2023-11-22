@@ -32,6 +32,7 @@ contract Dispense is Initializable, IEvents{
     IUniswapV2Router02 public JMRouter;
     IERC20 public wbttToken;
     IERC20 public wmlToken;
+    address public JMWmlBttAddr;
 
     uint256 public jackpotB;        //bronze
     uint256 public jackpotS;        //siver
@@ -45,7 +46,9 @@ contract Dispense is Initializable, IEvents{
     uint256 private _winProbB;                  //winning probability for Bronze
     uint256 private _winProbS;                  //winning probability for Silver
     uint256 private _winProbG;                  //winning probability for Gold
-    uint256 private _rewardPerc;                  //reward percentage for instawin
+    uint256 private _rewardProb;                  //reward percentage for instawin
+    uint256 private _rewardGain;
+    uint256 private _rewardKnee;
     uint256 private _jackpotRate;    //% of jackpot to distribute to winners
 
     uint256 private _buybackPerc;               //% buyback
@@ -87,7 +90,9 @@ contract Dispense is Initializable, IEvents{
         _winProbB = 7;                     //1 in 7 wins
         _winProbS = 23;                     //1 in 23 wins
         _winProbG = 97;                     //1 in 97 wins
-        _rewardPerc = 400;                    //400% max win of buyback
+        _rewardProb = 200;                    //200% probability range
+        _rewardGain = 100;                       //unity gain
+        _rewardKnee = 100;                       //50% knee point
 
         _jackpotRate = 70;                  //30% of jackpot remains in the pot after a win
         _buybackPerc = 50;                      //50% of bets to buyback WML from DEX
@@ -186,6 +191,12 @@ contract Dispense is Initializable, IEvents{
         price = 8888 * 10**18;
     }
 
+    function getWmlPriceReal() public view returns (uint256 price) {
+        uint256 balWml = wmlToken.balanceOf(JMWmlBttAddr);
+        uint256 balBtt = wbttToken.balanceOf(JMWmlBttAddr);
+        price = balBtt * 10**18 / balWml;
+    }
+
     /* ========== DISPENSE FUNCTIONS ========== */
 
     function getSeed(address user) public view returns(uint256 seed){
@@ -207,6 +218,17 @@ contract Dispense is Initializable, IEvents{
         return(wmlAmount);
     }
 
+    function buybackWmlReal(uint256 bttAmount) internal returns(uint256 wmlAmount){
+        address[] memory path = new address[](2);
+        uint256[] memory amounts;
+
+        path[0] = address(wbttToken);
+        path[1] = address(wmlToken);
+        amounts = JMRouter.swapExactETHForTokens{value:bttAmount}(1,path,address(this),block.timestamp+10);
+        wmlAmount = amounts[1];
+        return(wmlAmount);
+    }
+
     function dispense() public payable nonReentrant returns(uint256 amount, uint256 reward, uint256 jackpot){
         require(msg.value >= _minBetB, "Buyback too low");
         require(msg.value <= _maxBet, "Buyback too big");
@@ -215,8 +237,12 @@ contract Dispense is Initializable, IEvents{
         _prevSeed[msg.sender] = seed;
 
         uint256 wmlBought = _incrementJackpot(msg.value);
+        uint256 wmlEq = wmlBought * 100 / _buybackPerc;
 
-        reward = (seed % _rewardPerc) * wmlBought / 100;
+        reward = (seed % _rewardProb) * wmlEq / 100;
+        if (reward > wmlEq * _rewardKnee / 100){
+            reward = wmlEq * _rewardKnee / 100 + (reward - wmlEq * _rewardKnee / 100) * _rewardGain / 100;
+        }
         wmlToken.transfer(msg.sender, reward);
 
         amount = _distribute(seed);
@@ -349,6 +375,11 @@ contract Dispense is Initializable, IEvents{
 		wmlToken = IERC20(wmlAddress);
 	}
 
+	function setWmlPoolAddr(address wmlPoolAddress) public onlyAdmin {
+	    require(wmlPoolAddress != address(0), "INVALID_ADDRESS");
+		JMWmlBttAddr = wmlPoolAddress;
+	}
+
 	function setBandAddr(address bandAddress) public onlyAdmin {
 	    require(bandAddress != address(0), "INVALID_ADDRESS");
 		bandRef = IBand(bandAddress);
@@ -363,13 +394,15 @@ contract Dispense is Initializable, IEvents{
         _maxBet = max;
 	}
 
-	function setProb(uint256 probB, uint256 probS, uint256 probG, uint256 rewardPerc) public onlyAdmin {
-	    require(probG > probS && probS > probB && rewardPerc >0, "Check values");
+	function setProb(uint256 probB, uint256 probS, uint256 probG, uint256 rewardProb, uint256 rewardGain, uint256 rewardKnee) public onlyAdmin {
+	    require(probG > probS && probS > probB && rewardProb >= 100 && rewardGain >= 100, "Check values");
 
 	    _winProbB = probB;
 	    _winProbS = probS;
         _winProbG = probG;
-        _rewardPerc = rewardPerc;
+        _rewardProb = rewardProb;
+        _rewardGain = rewardGain;
+        _rewardKnee = rewardKnee;
 	}
 
     function setPerc(uint256 jackpotRate, uint256 buybackPerc) public onlyAdmin {
@@ -404,13 +437,10 @@ contract Dispense is Initializable, IEvents{
 	}
 
     function withdraw(uint256 amount) public onlyAdmin {
-        address payable rec = payable(msg.sender);
-
         if (amount == 0) {
             amount = address(this).balance;
         }
-		(bool sent, ) = rec.call{value: amount}("");
-		require(sent, "Failed to send BTT");
+		_sendBtt(amount, msg.sender);
     }
 
     function _sendBtt(uint256 amount, address dest) internal {
