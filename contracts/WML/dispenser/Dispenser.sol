@@ -32,7 +32,6 @@ contract Dispense is Initializable, IEvents{
     IUniswapV2Router02 public JMRouter;
     IERC20 public wbttToken;
     IERC20 public wmlToken;
-    address public JMWmlBttAddr;
 
     uint256 public jackpotB;        //bronze
     uint256 public jackpotS;        //siver
@@ -47,8 +46,6 @@ contract Dispense is Initializable, IEvents{
     uint256 private _winProbS;                  //winning probability for Silver
     uint256 private _winProbG;                  //winning probability for Gold
     uint256 private _rewardProb;                  //reward percentage for instawin
-    uint256 private _rewardGain;
-    uint256 private _rewardKnee;
     uint256 private _jackpotRate;    //% of jackpot to distribute to winners
 
     uint256 private _buybackPerc;               //% buyback
@@ -65,6 +62,10 @@ contract Dispense is Initializable, IEvents{
 
     //Last V1 variable
     uint256 public version;
+
+    uint256 private _rewardGain;
+    uint256 private _rewardKnee;
+    address public JMWmlBttAddr;
 
 	/**
 	* @dev initializer
