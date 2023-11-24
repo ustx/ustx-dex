@@ -60,11 +60,11 @@ contract FairLuckPad {
         maxInvest = 1000000000 * 10**18;         //1B BTT
         redeemEnabled = false;
         saleEnabled = false;
-        treasuryPerc = 10;          //10% of tokens
+        treasuryPerc = 0;          //10% of tokens
         treasuryBttPerc = 40;           //40% of BTT
         minLuck = 100;            //base luck: 100%
         maxLuck = 200;            //max luck: 200%
-        bandRef = IBand(0x8c064bCf7C0DA3B3b090BAbFE8f3323534D84d68);
+        bandRef = IBand(0xDA7a001b254CD22e46d3eAB04d937489c93174C3);    //mainnet
     }
 
 	/***********************************|
