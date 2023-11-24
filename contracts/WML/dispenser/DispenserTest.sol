@@ -32,7 +32,6 @@ contract Dispense is Initializable, IEvents{
     IUniswapV2Router02 public JMRouter;
     IERC20 public wbttToken;
     IERC20 public wmlToken;
-    address public JMWmlBttAddr;
 
     uint256 public jackpotB;        //bronze
     uint256 public jackpotS;        //siver
@@ -46,14 +45,10 @@ contract Dispense is Initializable, IEvents{
     uint256 private _winProbB;                  //winning probability for Bronze
     uint256 private _winProbS;                  //winning probability for Silver
     uint256 private _winProbG;                  //winning probability for Gold
-    uint256 private _rewardProb;                //reward probability for instawin
-    uint256 private _rewardGain;
-    uint256 private _rewardKnee;
+    uint256 private _rewardProb;                  //reward percentage for instawin
     uint256 private _jackpotRate;    //% of jackpot to distribute to winners
 
     uint256 private _buybackPerc;               //% buyback
-    address public feeAddr;                     //fee address
-    uint256 private _feeRate;                   //% of fee on jackpot wins
 
     uint256 public dispenseRate;            //rate of dispensing in MH
     uint256 public dispenseAccounts;        //no of accounts to dispense in a single shot
@@ -68,6 +63,10 @@ contract Dispense is Initializable, IEvents{
     //Last V1 variable
     uint256 public version;
 
+    uint256 private _rewardGain;
+    uint256 private _rewardKnee;
+    address public JMWmlBttAddr;
+
 	/**
 	* @dev initializer
 	*
@@ -77,13 +76,12 @@ contract Dispense is Initializable, IEvents{
         _notEntered = true;
         _numAdmins = 0;
 		_addAdmin(msg.sender);		//default admin
-        feeAddr = msg.sender;
 
         wbttToken = IERC20(0x23181F21DEa5936e24163FFABa4Ea3B316B57f3C);             //main
         JMRouter = IUniswapV2Router02(0x0C759476B4E74614D30e1F667455A4e1f2Da8ACb);  //main
-        wmlToken = IERC20(0xB134503c1047d1F2c3Cb494991d79132980417d6);      //main
+        wmlToken = IERC20(0x876AfC0f992cd7f6ADFCFB84c6e8056e57AEc8B7);      //testnet
 
-        bandRef = IBand(0xDA7a001b254CD22e46d3eAB04d937489c93174C3);        //main
+        bandRef = IBand(0x8c064bCf7C0DA3B3b090BAbFE8f3323534D84d68);        //testnet
 
         _minBetB = 100000 * 10**18;         //100k BTT -> 0.04$
         _minBetS = 1000000 * 10**18;        // 1M BTT -> 0.4$
@@ -97,15 +95,13 @@ contract Dispense is Initializable, IEvents{
         _rewardGain = 100;                       //unity gain
         _rewardKnee = 100;                       //50% knee point
 
-        _jackpotRate = 70;                  //70% of jackpot is paid
-        _feeRate = 10;                      //10% fee, 20% remains for next winner
-
+        _jackpotRate = 70;                  //30% of jackpot remains in the pot after a win
         _buybackPerc = 50;                      //50% of bets to buyback WML from DEX
 
         dispenseRate = 100;                  //0.0001 of tokens to be distributed every shot
         dispenseAccounts = 100;             //100 accounts every shot
         dispenseMaxAmount = 1000 * 10**18;           //max 1000 token per account
-        dispenseEnable = 0;
+        dispenseEnable = 1;
     }
 
 
@@ -192,7 +188,11 @@ contract Dispense is Initializable, IEvents{
         mcap = circulating * price / 10**18;
     }
 
-    function getWmlPrice() public view returns (uint256 price) {
+    function getWmlPrice() public pure returns (uint256 price) {
+        price = 8888 * 10**18;
+    }
+
+    function getWmlPriceReal() public view returns (uint256 price) {
         uint256 balWml = wmlToken.balanceOf(JMWmlBttAddr);
         uint256 balBtt = wbttToken.balanceOf(JMWmlBttAddr);
         price = balBtt * 10**18 / balWml;
@@ -213,7 +213,13 @@ contract Dispense is Initializable, IEvents{
         return seed;
     }
 
-    function buybackWml(uint256 bttAmount) internal returns(uint256 wmlAmount){
+    function buybackWml(uint256 bttAmount) internal pure returns(uint256 wmlAmount){
+        uint256 wmlPrice = 8888;
+        wmlAmount = bttAmount / wmlPrice;
+        return(wmlAmount);
+    }
+
+    function buybackWmlReal(uint256 bttAmount) internal returns(uint256 wmlAmount){
         address[] memory path = new address[](2);
         uint256[] memory amounts;
 
@@ -329,8 +335,6 @@ contract Dispense is Initializable, IEvents{
             jackpotB -= win;
             _sendBtt(win, msg.sender);
             emit NewJackpot(msg.sender,0,win);
-            win = jackpotB * _feeRate / 100;
-            _sendBtt(win, feeAddr);
         }
         return(win);
     }
@@ -341,8 +345,6 @@ contract Dispense is Initializable, IEvents{
             jackpotS -= win;
             _sendBtt(win, msg.sender);
             emit NewJackpot(msg.sender,1,win);
-            win = jackpotS * _feeRate / 100;
-            _sendBtt(win, feeAddr);
         }
         return(win);
     }
@@ -353,8 +355,6 @@ contract Dispense is Initializable, IEvents{
             jackpotG -= win;
             _sendBtt(win, msg.sender);
             emit NewJackpot(msg.sender,2,win);
-            win = jackpotG * _feeRate / 100;
-            _sendBtt(win, feeAddr);
         }
         return(win);
     }
@@ -386,11 +386,6 @@ contract Dispense is Initializable, IEvents{
 		bandRef = IBand(bandAddress);
 	}
 
-	function setFeeAddr(address feeAddress) public onlyAdmin {
-	    require(feeAddress != address(0), "INVALID_ADDRESS");
-		feeAddr = feeAddress;
-	}
-
 	function setBetLimits(uint256 minB, uint256 minS, uint256 minG, uint256 max) public onlyAdmin {
 	    require(max > minG && minG > minS && minS > minB, "Check values");
 
@@ -411,12 +406,11 @@ contract Dispense is Initializable, IEvents{
         _rewardKnee = rewardKnee;
 	}
 
-    function setPerc(uint256 jackpotRate, uint256 buybackPerc, uint256 feeRate) public onlyAdmin {
-        require(jackpotRate > 50 && buybackPerc >10 && feeRate < 20, "Check values");
+    function setPerc(uint256 jackpotRate, uint256 buybackPerc) public onlyAdmin {
+        require(jackpotRate > 50 && buybackPerc >10, "Check values");
 
 	    _jackpotRate = jackpotRate;
         _buybackPerc = buybackPerc;
-        _feeRate = feeRate;
 	}
 
 	function setDispenseEnable(uint256 enable) public onlyAdmin {
