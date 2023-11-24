@@ -123,6 +123,8 @@ contract FairLuckPad {
         _notEntered = true;
     }
 
+    //Getter functions
+
     function getCap() public view returns(uint256){
         return (totalRaised * 100 / softCap);
     }
@@ -141,7 +143,33 @@ contract FairLuckPad {
         return luck;
     }
 
-    // invest
+    function getTiming() public view returns(uint256 timeToStart, uint256 timeToEnd, uint256 start, uint256 end){
+        if (block.timestamp < startTime){
+            timeToStart = startTime - block.timestamp;
+        } else {
+            timeToStart = 0;
+        }
+
+        if (block.timestamp < startTime + duration){
+            timeToEnd = startTime + duration - block.timestamp;
+        } else {
+            timeToEnd = 0;
+        }
+        return(timeToStart, timeToEnd, startTime, startTime + duration);
+    }
+
+    function getUserInfo(address user) public view returns(uint256 amount, bool claimed, uint256 share, uint256 tokens, uint256 luck){
+        if (totalRaised > 0) {
+            share = investors[user].amountInvested * 1000 * investors[user].luckFactor / totalRaisedLuck;
+            tokens = investors[user].amountInvested * launchShare * investors[user].luckFactor / totalRaisedLuck;
+            luck = investors[user].luckFactor;
+        }
+
+        return(investors[user].amountInvested, investors[user].claimed, share, tokens, luck);
+    }
+
+    // Operating functions
+
     function invest() public payable nonReentrant{
         require(block.timestamp >= startTime, "not started yet");
         require(block.timestamp < startTime+duration, "sale ended");
@@ -153,7 +181,7 @@ contract FairLuckPad {
 
         totalRaised += msg.value;
 
-        uint256 userLuck = getLuck(msg.sender);   //luck function tbd
+        uint256 userLuck = getLuck(msg.sender);
         _prevLuck[msg.sender] = userLuck;
 
         if (investor.amountInvested == 0){
@@ -192,21 +220,6 @@ contract FairLuckPad {
         totalRedeem += investor.amountInvested;
         emit Redeem(msg.sender, investor.amountInvested);
         investor.claimed = true;
-    }
-
-    // define the launch token to be redeemed
-    function setLaunchToken(address _launchToken) public onlyAdmin {
-        launchToken = _launchToken;
-    }
-
-    // define the treasury address
-    function setTreasuryAddress(address _treasury) public onlyAdmin {
-        treasury = _treasury;
-    }
-
-     // set the oracle address
-    function setOracleAddress(IBand _band) public onlyAdmin {
-        bandRef = _band;
     }
 
     // withdraw in case some tokens were not redeemed
@@ -325,28 +338,18 @@ contract FairLuckPad {
         maxInvest = _max;
     }
 
-    function getTiming() public view returns(uint256 timeToStart, uint256 timeToEnd, uint256 start, uint256 end){
-        if (block.timestamp < startTime){
-            timeToStart = startTime - block.timestamp;
-        } else {
-            timeToStart = 0;
-        }
-
-        if (block.timestamp < startTime + duration){
-            timeToEnd = startTime + duration - block.timestamp;
-        } else {
-            timeToEnd = 0;
-        }
-        return(timeToStart, timeToEnd, startTime, startTime + duration);
+    // define the launch token to be redeemed
+    function setLaunchToken(address _launchToken) public onlyAdmin {
+        launchToken = _launchToken;
     }
 
-    function getUserInfo(address user) public view returns(uint256 amount, bool claimed, uint256 share, uint256 tokens, uint256 luck){
-        if (totalRaised > 0) {
-            share = investors[user].amountInvested * 1000 * investors[user].luckFactor / totalRaisedLuck;
-            tokens = investors[user].amountInvested * launchShare * investors[user].luckFactor / totalRaisedLuck;
-            luck = investors[user].luckFactor;
-        }
+    // define the treasury address
+    function setTreasuryAddress(address _treasury) public onlyAdmin {
+        treasury = _treasury;
+    }
 
-        return(investors[user].amountInvested, investors[user].claimed, share, tokens, luck);
+     // set the oracle address
+    function setOracleAddress(IBand _band) public onlyAdmin {
+        bandRef = _band;
     }
 }
