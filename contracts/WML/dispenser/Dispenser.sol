@@ -213,7 +213,7 @@ contract Dispense is Initializable, IEvents{
         return seed;
     }
 
-    function buybackWml(uint256 bttAmount) internal returns(uint256 wmlAmount){
+    function _buybackWml(uint256 bttAmount) internal returns(uint256 wmlAmount){
         address[] memory path = new address[](2);
         uint256[] memory amounts;
 
@@ -251,7 +251,7 @@ contract Dispense is Initializable, IEvents{
     function _incrementJackpot(uint256 betAmount) internal returns(uint256 wmlBought){
         uint256 buybackBtt = betAmount * _buybackPerc / 100;
         buybackTotal += buybackBtt;
-        wmlBought = buybackWml(buybackBtt);
+        wmlBought = _buybackWml(buybackBtt);
         uint256 bet = betAmount - buybackBtt;
         uint256 temp;
 
@@ -313,13 +313,6 @@ contract Dispense is Initializable, IEvents{
             win = _checkSilver(seed);
         }
         win = _checkBronze(seed);
-        return(win);
-    }
-
-    function testBronze(uint256 seed) public view returns(uint256 win){
-        if ((seed % _winProbB) == 0) {
-            win = jackpotB * _jackpotRate / 100;
-        }
         return(win);
     }
 
