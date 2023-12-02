@@ -322,8 +322,9 @@ contract Dispense is Initializable, IEvents{
             jackpotB -= win;
             _sendBtt(win, msg.sender);
             emit NewJackpot(msg.sender,0,win);
-            win = jackpotB * _feeRate / 100;
-            _sendBtt(win, feeAddr);
+            uint256 fee = jackpotB * _feeRate / 100;
+            jackpotB -= fee;
+            _sendBtt(fee, feeAddr);
         }
         return(win);
     }
@@ -334,8 +335,9 @@ contract Dispense is Initializable, IEvents{
             jackpotS -= win;
             _sendBtt(win, msg.sender);
             emit NewJackpot(msg.sender,1,win);
-            win = jackpotS * _feeRate / 100;
-            _sendBtt(win, feeAddr);
+            uint256 fee = jackpotS * _feeRate / 100;
+            jackpotS -= fee;
+            _sendBtt(fee, feeAddr);
         }
         return(win);
     }
@@ -346,8 +348,9 @@ contract Dispense is Initializable, IEvents{
             jackpotG -= win;
             _sendBtt(win, msg.sender);
             emit NewJackpot(msg.sender,2,win);
-            win = jackpotG * _feeRate / 100;
-            _sendBtt(win, feeAddr);
+            uint256 fee = jackpotG * _feeRate / 100;
+            jackpotG -= fee;
+            _sendBtt(fee, feeAddr);
         }
         return(win);
     }
