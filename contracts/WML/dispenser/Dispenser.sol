@@ -397,7 +397,7 @@ contract Dispense is Initializable, IEvents{
 	}
 
 	function setProb(uint256 probB, uint256 probS, uint256 probG, uint256 rewardProb, uint256 rewardGain, uint256 rewardKnee) public onlyAdmin {
-	    require(probG > probS && probS > probB && rewardProb >= 100 && rewardGain >= 100, "Check values");
+	    require(probG > probS && probS > probB && rewardProb >= 10 && rewardGain >= 100, "Check values");
 
 	    _winProbB = probB;
 	    _winProbS = probS;
