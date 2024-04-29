@@ -170,7 +170,7 @@ contract Bond is Initializable{
         emit NewEmission(msg.sender, amount, _userIndex[msg.sender]);
     }
 
-    function redeem(uint256 amount) public nonReentrant {
+    function _redeem(uint256 amount) internal returns(uint256) {
         address activeUser = _users[activeBond];
         uint256 available = _userToBeRedeemed[activeUser];
         uint256 tax;
@@ -191,6 +191,18 @@ contract Bond is Initializable{
         _totalRedeemed += amount;
 
         emit Redeemed(msg.sender, amount, _userToBeRedeemed[activeUser]);
+
+        return amount;
+    }
+
+    function redeem(uint256 amount) public nonReentrant {
+        uint256 realAmount = _redeem(amount);
+        ustxToken.transfer(msg.sender, realAmount);         //send USTX to user
+    }
+
+    function redeemAndBurn(uint256 amount) public nonReentrant {
+        uint256 realAmount = _redeem(amount);
+        ustxToken.burn(realAmount);         //burn USTX
     }
 
     function withdraw() public nonReentrant {
