@@ -170,29 +170,30 @@ contract Bond is Initializable{
         emit NewEmission(msg.sender, amount, _userIndex[msg.sender]);
     }
 
-    function _redeem(uint256 amount) internal returns(uint256) {
+    function _redeem(uint256 amount) internal returns(uint256 realAmount) {
         address activeUser = _users[activeBond];
         uint256 available = _userToBeRedeemed[activeUser];
         uint256 tax;
 
+        realAmount = amount;
         if (amount >= available) {
-            amount = available;
+            realAmount = available;
             _userToBeRedeemed[activeUser] = 0;
             activeBond++;
         } else {
-            _userToBeRedeemed[activeUser] -= amount;
+            _userToBeRedeemed[activeUser] -= realAmount;
         }
 
-        require(amount > 0, "Nothing to redeem");
+        require(realAmount > 0, "Nothing to redeem");
 
-        tax = amount * redeemPrice * _taxRate / 1000 / 1000000;
-        usdtToken.transferFrom(msg.sender, activeUser, amount * redeemPrice / 1000000 - tax);
+        tax = realAmount * redeemPrice * _taxRate / 1000 / 1000000;
+        usdtToken.transferFrom(msg.sender, activeUser, realAmount * redeemPrice / 1000000 - tax);
         usdtToken.transferFrom(msg.sender, _taxWallet, tax);
-        _totalRedeemed += amount;
+        _totalRedeemed += realAmount;
 
-        emit Redeemed(msg.sender, amount, _userToBeRedeemed[activeUser]);
+        emit Redeemed(msg.sender, realAmount, _userToBeRedeemed[activeUser]);
 
-        return amount;
+        return realAmount;
     }
 
     function redeem(uint256 amount) public nonReentrant {
