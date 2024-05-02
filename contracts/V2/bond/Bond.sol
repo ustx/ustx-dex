@@ -71,8 +71,7 @@ contract Bond is Initializable{
         _totalRedeemed = 0;
         _taxRate = 50;            //Tax 5% when redeeming
         _bondEnable=1;
-        _users.push(address(0));
-        activeBond=1;           //incremental
+        activeBond=0;           //incremental
         redeemPrice=10000;      //0.01 USDT, 6 decimals
     }
 
@@ -149,6 +148,14 @@ contract Bond is Initializable{
 
     function getTax() public view returns (uint256) {
         return (_taxRate);
+    }
+
+    function getCurrentBond() public view returns (uint256 ustxTBR, uint256 usdtTBR) {
+        if (_users.length > activeBond) {
+            ustxTBR = _userToBeRedeemed[_users[activeBond]];
+            usdtTBR = ustxTBR * redeemPrice / 1000000;
+        }
+        return (ustxTBR, usdtTBR);
     }
 
     /* ========== BOND FUNCTIONS ========== */
