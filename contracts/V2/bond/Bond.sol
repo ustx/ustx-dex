@@ -143,8 +143,8 @@ contract Bond is Initializable{
         return (ustxToken.balanceOf(address(this)), _totalEmissions, _totalRedeemed, temp);
     }
 
-    function balanceOf(address account) public view returns (uint256, uint256) {
-        return (_userEmitted[account],_userToBeRedeemed[account]);
+    function balanceOf(address account) public view returns (uint256, uint256, uint256) {
+        return (_userEmitted[account],_userToBeRedeemed[account], _userIndex[account]);
     }
 
     function getTax() public view returns (uint256) {
