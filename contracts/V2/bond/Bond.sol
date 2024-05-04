@@ -160,7 +160,7 @@ contract Bond is Initializable{
 
     /* ========== BOND FUNCTIONS ========== */
 
-    function newbond(uint256 amount) public nonReentrant {
+    function newBond(uint256 amount) public nonReentrant {
         require(amount > 0, "Cannot emit 0");
         require(_bondEnable > 0, "Bond emission is not allowed");
         _totalEmissions += amount;
