@@ -66,6 +66,8 @@ interface IERC20 {
         uint256 amount
     ) external returns (bool);
 
+    function burn(uint256 amount) external;
+
     /**
      * @dev Emitted when `value` tokens are moved from one account (`from`) to
      * another (`to`).
