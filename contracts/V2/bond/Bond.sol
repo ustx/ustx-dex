@@ -187,6 +187,7 @@ contract Bond is Initializable{
             realAmount = available;
             _userToBeRedeemed[activeUser] = 0;
             activeBond++;
+            _fixActiveBond();
         } else {
             _userToBeRedeemed[activeUser] -= realAmount;
         }
@@ -221,11 +222,27 @@ contract Bond is Initializable{
         _totalEmissions -= amount;
         _userToBeRedeemed[msg.sender] = 0;
         _userEmitted[msg.sender] -= amount;
+        _userIndex[msg.sender] = 0;
         ustxToken.transfer(msg.sender, amount);
+        _fixActiveBond();
 
         emit Withdrawn(msg.sender, amount);
     }
 
+    function _fixActiveBond() internal {
+        bool condition = false;
+        if (_users.length > activeBond){
+            condition = _userIndex[_users[activeBond]]==0;
+        }
+        while (condition) {
+            activeBond++;
+            if (_users.length > activeBond){
+                condition = _userIndex[_users[activeBond]]==0;
+            } else {
+                condition = false;
+            }
+        }
+    }
 
 	/**
 	* @dev Function to set Token address (only admin)
@@ -270,6 +287,10 @@ contract Bond is Initializable{
 
 	function setRedeemPrice(uint256 price) public onlyAdmin {
         redeemPrice = price;
+	}
+
+	function setActiveBond(uint256 index) public onlyAdmin {
+	    activeBond = index;
 	}
 
     /**
